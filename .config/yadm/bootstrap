@@ -1,1 +1,16 @@
-echo "init"
+#!/bin/bash
+
+cd "$HOME"
+
+echo "Init custom environment variables"
+
+if [ -z "${SYSTEM_CONF}" ]; then
+	echo "add SYSTEM_CONF to .bashrc"
+	echo 'export SYSTEM_CONF=$HOME/.config/system_conf' >> $HOME/.bashrc
+fi
+
+source $HOME/.bashrc
+
+echo "Init submodules"
+
+yadm submodule update --recursive --init
