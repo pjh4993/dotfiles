@@ -88,6 +88,7 @@ install_linux() {
   # Install tmuxinator
   if ! command -v tmuxinator &>/dev/null; then
     echo "==> Installing tmuxinator..."
+    sudo apt install -y ruby
     sudo gem install tmuxinator
   fi
 
