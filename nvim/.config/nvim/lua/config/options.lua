@@ -7,3 +7,4 @@ vim.opt.relativenumber = true -- relative line numbers
 vim.opt.scrolloff = 8 -- keep 8 lines visible above/below cursor
 vim.opt.swapfile = false -- no swap files
 vim.opt.undofile = true -- persistent undo
+vim.opt.autoread = true -- auto-read files changed outside nvim
