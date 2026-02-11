@@ -2,7 +2,14 @@
 set -euo pipefail
 
 DOTFILES_DIR="$(cd "$(dirname "$0")" && pwd)"
-SHARED_PACKAGES=(nvim alacritty tmux zsh git lazygit)
+BASE_PACKAGES=(nvim tmux zsh git lazygit)
+
+HEADLESS=false
+for arg in "$@"; do
+  case "$arg" in
+    --server|--headless) HEADLESS=true ;;
+  esac
+done
 
 install_macos() {
   echo "==> Detected macOS"
@@ -18,7 +25,7 @@ install_macos() {
 
   echo "==> Stowing packages..."
   cd "$DOTFILES_DIR"
-  stow "${SHARED_PACKAGES[@]}" aerospace
+  stow "${BASE_PACKAGES[@]}" alacritty aerospace
 }
 
 install_linux() {
@@ -26,10 +33,14 @@ install_linux() {
 
   echo "==> Installing dependencies..."
   sudo apt update
-  sudo apt install -y stow neovim tmux zsh git i3 i3status xclip direnv broot curl
+  sudo apt install -y stow neovim tmux zsh git direnv broot curl
 
-  # Install alacritty if not present
-  if ! command -v alacritty &>/dev/null; then
+  if [ "$HEADLESS" = false ]; then
+    sudo apt install -y i3 i3status xclip
+  fi
+
+  # Install alacritty if not present (GUI only)
+  if [ "$HEADLESS" = false ] && ! command -v alacritty &>/dev/null; then
     echo "==> Installing Alacritty via snap..."
     sudo snap install alacritty --classic 2>/dev/null || echo "    Snap not available, install Alacritty manually"
   fi
@@ -50,24 +61,33 @@ install_linux() {
     sudo apt install -y git-delta 2>/dev/null || echo "    git-delta not in apt, install manually: https://github.com/dandavison/delta/releases"
   fi
 
-  # Install JetBrainsMono Nerd Font
-  FONT_DIR="$HOME/.local/share/fonts"
-  if [ ! -d "$FONT_DIR/JetBrainsMono" ]; then
-    echo "==> Installing JetBrainsMono Nerd Font..."
-    mkdir -p "$FONT_DIR/JetBrainsMono"
-    curl -fLo /tmp/JetBrainsMono.zip https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip
-    unzip -o /tmp/JetBrainsMono.zip -d "$FONT_DIR/JetBrainsMono"
-    rm -f /tmp/JetBrainsMono.zip
-    fc-cache -fv
+  # Install JetBrainsMono Nerd Font (GUI only)
+  if [ "$HEADLESS" = false ]; then
+    FONT_DIR="$HOME/.local/share/fonts"
+    if [ ! -d "$FONT_DIR/JetBrainsMono" ]; then
+      echo "==> Installing JetBrainsMono Nerd Font..."
+      mkdir -p "$FONT_DIR/JetBrainsMono"
+      curl -fLo /tmp/JetBrainsMono.zip https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip
+      unzip -o /tmp/JetBrainsMono.zip -d "$FONT_DIR/JetBrainsMono"
+      rm -f /tmp/JetBrainsMono.zip
+      fc-cache -fv
+    fi
   fi
 
   echo "==> Stowing packages..."
   cd "$DOTFILES_DIR"
-  stow "${SHARED_PACKAGES[@]}" i3
+  if [ "$HEADLESS" = false ]; then
+    stow "${BASE_PACKAGES[@]}" alacritty i3
+  else
+    stow "${BASE_PACKAGES[@]}"
+  fi
 }
 
 echo "dotfiles installer"
 echo "=================="
+if [ "$HEADLESS" = true ]; then
+  echo "    Mode: server (headless) — GUI packages will be skipped"
+fi
 
 case "$(uname -s)" in
   Darwin) install_macos ;;
