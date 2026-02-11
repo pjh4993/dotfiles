@@ -22,10 +22,11 @@ install_macos() {
   echo "==> Installing dependencies..."
   brew install stow neovim tmux alacritty zsh git lazygit direnv git-delta broot
   brew install --cask nikitabobko/tap/aerospace
+  gem install tmuxinator
 
   echo "==> Stowing packages..."
   cd "$DOTFILES_DIR"
-  stow "${BASE_PACKAGES[@]}" alacritty aerospace
+  stow "${BASE_PACKAGES[@]}" alacritty aerospace tmuxinator
 }
 
 install_linux() {
@@ -79,6 +80,12 @@ install_linux() {
     rm -f /tmp/broot
   fi
 
+  # Install tmuxinator
+  if ! command -v tmuxinator &>/dev/null; then
+    echo "==> Installing tmuxinator..."
+    sudo gem install tmuxinator
+  fi
+
   # Install JetBrainsMono Nerd Font (GUI only)
   if [ "$HEADLESS" = false ]; then
     FONT_DIR="$HOME/.local/share/fonts"
@@ -95,9 +102,9 @@ install_linux() {
   echo "==> Stowing packages..."
   cd "$DOTFILES_DIR"
   if [ "$HEADLESS" = false ]; then
-    stow "${BASE_PACKAGES[@]}" alacritty i3
+    stow "${BASE_PACKAGES[@]}" alacritty i3 tmuxinator
   else
-    stow "${BASE_PACKAGES[@]}"
+    stow "${BASE_PACKAGES[@]}" tmuxinator
   fi
 }
 

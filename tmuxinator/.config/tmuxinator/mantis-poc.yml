@@ -1,0 +1,12 @@
+name: mantis-poc
+root: ~/workspace/mantis-poc
+
+windows:
+  - dev:
+      layout: main-vertical
+      panes:
+        - nvim
+        - claude
+        - lazygit
+        - zsh
+        - zsh
