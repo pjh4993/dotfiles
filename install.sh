@@ -33,7 +33,7 @@ install_linux() {
 
   echo "==> Installing dependencies..."
   sudo apt update
-  sudo apt install -y stow neovim tmux zsh git direnv curl
+  sudo apt install -y stow tmux zsh git direnv curl unzip
 
   if [ "$HEADLESS" = false ]; then
     sudo apt install -y i3 i3status xclip
@@ -43,6 +43,16 @@ install_linux() {
   if [ "$HEADLESS" = false ] && ! command -v alacritty &>/dev/null; then
     echo "==> Installing Alacritty via snap..."
     sudo snap install alacritty --classic 2>/dev/null || echo "    Snap not available, install Alacritty manually"
+  fi
+
+  # Install neovim from GitHub releases (apt version is too old for LazyVim)
+  if ! command -v nvim &>/dev/null || [[ "$(printf '%s\n' "$(nvim --version | head -1 | grep -oP '\d+\.\d+\.\d+')" 0.11.2 | sort -V | head -1)" != "0.11.2" ]]; then
+    echo "==> Installing Neovim (>= 0.11.2 required)..."
+    curl -fLo /tmp/nvim-linux-x86_64.tar.gz https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz
+    sudo rm -rf /opt/nvim-linux-x86_64
+    sudo tar xzf /tmp/nvim-linux-x86_64.tar.gz -C /opt
+    sudo ln -sf /opt/nvim-linux-x86_64/bin/nvim /usr/local/bin/nvim
+    rm -f /tmp/nvim-linux-x86_64.tar.gz
   fi
 
   # Install lazygit
