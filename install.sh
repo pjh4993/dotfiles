@@ -20,7 +20,7 @@ install_macos() {
   fi
 
   echo "==> Installing dependencies..."
-  brew install stow neovim tmux alacritty zsh git lazygit direnv git-delta broot
+  brew install stow neovim tmux alacritty zsh git lazygit direnv git-delta broot ripgrep
   brew install --cask nikitabobko/tap/aerospace
   gem install tmuxinator
 
@@ -34,7 +34,7 @@ install_linux() {
 
   echo "==> Installing dependencies..."
   sudo apt update
-  sudo apt install -y stow tmux zsh git direnv curl unzip
+  sudo apt install -y stow tmux zsh git direnv curl unzip ripgrep
 
   if [ "$HEADLESS" = false ]; then
     sudo apt install -y i3 i3status xclip
