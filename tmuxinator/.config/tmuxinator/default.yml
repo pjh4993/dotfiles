@@ -1,5 +1,5 @@
-name: mantis-poc
-root: ~/workspace/mantis-poc
+name: default
+root: <%= `pwd`.strip %>
 
 windows:
   - dev:
