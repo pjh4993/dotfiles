@@ -4,31 +4,45 @@ Personal configuration files managed with [GNU Stow](https://www.gnu.org/softwar
 
 ## Packages
 
-| Package | Config |
-|---------|--------|
-| **nvim** | Neovim (LazyVim) |
-| **tmux** | tmux |
-| **alacritty** | Alacritty terminal |
-| **zsh** | Zsh shell |
-| **git** | Git |
-| **aerospace** | AeroSpace window manager |
-| **lazygit** | LazyGit |
+| Package | Config | OS |
+|---------|--------|----|
+| **nvim** | Neovim (LazyVim) | Both |
+| **tmux** | tmux | Both |
+| **alacritty** | Alacritty terminal | Both |
+| **zsh** | Zsh shell | Both |
+| **git** | Git | Both |
+| **lazygit** | LazyGit | Both |
+| **aerospace** | AeroSpace window manager | macOS only |
+| **i3** | i3 window manager | Linux only |
 
-## Setup
+## Quick Setup
 
 ```bash
-# Install GNU Stow
-brew install stow  # macOS
-
-# Clone and apply
 git clone https://github.com/pjh4993/dotfiles.git ~/dotfiles
 cd ~/dotfiles
+./install.sh
+```
 
-# Stow all packages
+The install script automatically detects your OS and:
+- Installs dependencies via `brew` (macOS) or `apt` (Linux)
+- Stows the correct packages (skips aerospace on Linux, skips i3 on macOS)
+
+## Manual Setup
+
+### macOS
+
+```bash
+brew install stow
+cd ~/dotfiles
 stow nvim alacritty tmux zsh git aerospace lazygit
+```
 
-# Or selectively
-stow nvim tmux
+### Linux (Ubuntu/Debian)
+
+```bash
+sudo apt install stow
+cd ~/dotfiles
+stow nvim alacritty tmux zsh git i3 lazygit
 ```
 
 ## Adding a new config

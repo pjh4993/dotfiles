@@ -104,12 +104,15 @@ source $ZSH/oh-my-zsh.sh
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 
 export PATH="$HOME/.local/bin:$PATH"
-alias tailscale=/Applications/Tailscale.app/Contents/MacOS/Tailscale
-
-# Homebrew build flags
-export PKG_CONFIG_PATH="/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH"
-export CFLAGS="-I/opt/homebrew/include"
-export LDFLAGS="-L/opt/homebrew/lib"
+# OS-specific config
+if [[ "$OSTYPE" == darwin* ]]; then
+  alias tailscale=/Applications/Tailscale.app/Contents/MacOS/Tailscale
+  export PKG_CONFIG_PATH="/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH"
+  export CFLAGS="-I/opt/homebrew/include"
+  export LDFLAGS="-L/opt/homebrew/lib"
+elif [[ "$OSTYPE" == linux-gnu* ]]; then
+  alias tailscale='tailscale'
+fi
 
 # hooks
 eval "$(direnv hook zsh)" # direnv hooks
@@ -120,4 +123,4 @@ loadenv() {
 	set -a && . "$file" && set +a
 }
 
-source /Users/pyler/.config/broot/launcher/bash/br
+[[ -f "$HOME/.config/broot/launcher/bash/br" ]] && source "$HOME/.config/broot/launcher/bash/br"
