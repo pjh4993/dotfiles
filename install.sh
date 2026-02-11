@@ -33,7 +33,7 @@ install_linux() {
 
   echo "==> Installing dependencies..."
   sudo apt update
-  sudo apt install -y stow neovim tmux zsh git direnv broot curl
+  sudo apt install -y stow neovim tmux zsh git direnv curl
 
   if [ "$HEADLESS" = false ]; then
     sudo apt install -y i3 i3status xclip
@@ -59,6 +59,14 @@ install_linux() {
   if ! command -v delta &>/dev/null; then
     echo "==> Installing git-delta..."
     sudo apt install -y git-delta 2>/dev/null || echo "    git-delta not in apt, install manually: https://github.com/dandavison/delta/releases"
+  fi
+
+  # Install broot
+  if ! command -v broot &>/dev/null; then
+    echo "==> Installing broot..."
+    curl -o /tmp/broot -fsSL https://dystroy.org/broot/download/x86_64-linux/broot
+    sudo install /tmp/broot /usr/local/bin
+    rm -f /tmp/broot
   fi
 
   # Install JetBrainsMono Nerd Font (GUI only)
