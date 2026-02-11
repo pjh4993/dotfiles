@@ -70,7 +70,7 @@ ZSH_THEME="robbyrussell"
 # Custom plugins may be added to $ZSH_CUSTOM/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
 # Add wisely, as too many plugins slow down shell startup.
-plugins=(git zsh-autosuggestions zsh-syntax-highlighting)
+plugins=(git zsh-autosuggestions zsh-syntax-highlighting ssh-agent)
 
 source $ZSH/oh-my-zsh.sh
 
@@ -115,6 +115,10 @@ elif [[ "$OSTYPE" == linux-gnu* ]]; then
 fi
 
 # hooks
+for hook in ~/.local/hooks/*.zsh; do
+  source "$hook"
+done
+
 eval "$(direnv hook zsh)" # direnv hooks
 
 # cmds
@@ -124,3 +128,7 @@ loadenv() {
 }
 
 [[ -f "$HOME/.config/broot/launcher/bash/br" ]] && source "$HOME/.config/broot/launcher/bash/br"
+
+# ssh agent
+zstyle ':omz:plugins:ssh-agent' identities id_rsa
+zstyle ':omz:plugins:ssh-agent' quiet yes
