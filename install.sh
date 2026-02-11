@@ -35,6 +35,11 @@ install_linux() {
   echo "==> Installing dependencies..."
   sudo apt update
   sudo apt install -y stow tmux zsh git direnv curl unzip ripgrep fd-find
+  # Symlink fdfind to fd (Ubuntu/Debian installs fd as fdfind)
+  if command -v fdfind &>/dev/null && ! command -v fd &>/dev/null; then
+    mkdir -p "$HOME/.local/bin"
+    ln -sf "$(which fdfind)" "$HOME/.local/bin/fd"
+  fi
 
   if [ "$HEADLESS" = false ]; then
     sudo apt install -y i3 i3status xclip
