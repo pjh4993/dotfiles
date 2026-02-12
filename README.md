@@ -15,6 +15,8 @@ Personal configuration files managed with [GNU Stow](https://www.gnu.org/softwar
 | **aerospace** | AeroSpace window manager | macOS only | |
 | **i3** | i3 window manager | Linux only | GUI only |
 | **octo.nvim** | GitHub PR/issue management | Both | Neovim plugin |
+| **tmuxinator** | Tmux session manager | Both | Default layout included |
+| **postgresql** | PostgreSQL 17 + pgvector | Both | `brew services start postgresql@17` |
 
 ## Quick Setup
 
@@ -26,8 +28,10 @@ cd ~/dotfiles
 
 The install script automatically detects your OS and:
 - Installs dependencies via `brew` (macOS) or `apt` (Linux)
-- Installs CLI tools: direnv, git-delta, broot, ripgrep, fd, jq, lazysql, carbonyl
+- Installs CLI tools: direnv, git-delta, broot, ripgrep, fd, jq, lazysql, carbonyl, infisical
+- Installs PostgreSQL 17 + pgvector
 - Installs Node.js via nvm (Linux) or brew (macOS)
+- Installs tmuxinator with default session layout
 - Stows the correct packages (skips aerospace on Linux, skips i3 on macOS)
 
 ### Linux Server (Headless)
