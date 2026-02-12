@@ -20,7 +20,7 @@ install_macos() {
   fi
 
   echo "==> Installing dependencies..."
-  brew install stow neovim tmux alacritty zsh git lazygit direnv git-delta broot ripgrep fd node jq lazysql carbonyl infisical
+  brew install stow neovim tmux alacritty zsh git lazygit direnv git-delta broot ripgrep fd node jq lazysql carbonyl infisical postgresql
   brew install --cask nikitabobko/tap/aerospace
   gem install tmuxinator
 
@@ -124,6 +124,12 @@ install_linux() {
     echo "==> Installing infisical..."
     curl -1sLf 'https://artifacts-cli.infisical.com/setup.deb.sh' | sudo -E bash
     sudo apt-get install -y infisical
+  fi
+
+  # Install PostgreSQL
+  if ! command -v psql &>/dev/null; then
+    echo "==> Installing PostgreSQL..."
+    sudo apt install -y postgresql postgresql-client
   fi
 
   # Install tmuxinator
