@@ -110,6 +110,7 @@ if [[ "$OSTYPE" == darwin* ]]; then
   export PKG_CONFIG_PATH="/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH"
   export CFLAGS="-I/opt/homebrew/include"
   export LDFLAGS="-L/opt/homebrew/lib"
+  export PATH="/opt/homebrew/opt/postgresql@17/bin:$PATH"
 elif [[ "$OSTYPE" == linux-gnu* ]]; then
   alias tailscale='tailscale'
 fi
