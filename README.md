@@ -14,6 +14,7 @@ Personal configuration files managed with [GNU Stow](https://www.gnu.org/softwar
 | **lazygit** | LazyGit | Both | |
 | **aerospace** | AeroSpace window manager | macOS only | |
 | **i3** | i3 window manager | Linux only | GUI only |
+| **octo.nvim** | GitHub PR/issue management | Both | Neovim plugin |
 
 ## Quick Setup
 
