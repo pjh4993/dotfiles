@@ -26,6 +26,7 @@ cd ~/dotfiles
 The install script automatically detects your OS and:
 - Installs dependencies via `brew` (macOS) or `apt` (Linux)
 - Installs CLI tools: direnv, git-delta, broot, ripgrep, fd, jq, lazysql, carbonyl
+- Installs Node.js via nvm (Linux) or brew (macOS)
 - Stows the correct packages (skips aerospace on Linux, skips i3 on macOS)
 
 ### Linux Server (Headless)
