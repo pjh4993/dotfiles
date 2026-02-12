@@ -20,7 +20,7 @@ install_macos() {
   fi
 
   echo "==> Installing dependencies..."
-  brew install stow neovim tmux alacritty zsh git lazygit direnv git-delta broot ripgrep fd node jq lazysql
+  brew install stow neovim tmux alacritty zsh git lazygit direnv git-delta broot ripgrep fd node jq lazysql carbonyl
   brew install --cask nikitabobko/tap/aerospace
   gem install tmuxinator
 
@@ -93,6 +93,19 @@ install_linux() {
     tar xf /tmp/lazysql.tar.gz -C /tmp lazysql
     sudo install /tmp/lazysql /usr/local/bin
     rm -f /tmp/lazysql /tmp/lazysql.tar.gz
+  fi
+
+  # Install carbonyl
+  if ! command -v carbonyl &>/dev/null; then
+    echo "==> Installing carbonyl..."
+    sudo apt install -y libnss3 libatk-bridge2.0-0t64 libcups2t64 libgbm1 libasound2t64
+    CARBONYL_VERSION=$(curl -s "https://api.github.com/repos/fathyb/carbonyl/releases/latest" | grep -Po '"tag_name": "v\K[^"]*')
+    curl -Lo /tmp/carbonyl.zip "https://github.com/fathyb/carbonyl/releases/download/v${CARBONYL_VERSION}/carbonyl.linux-amd64.zip"
+    unzip -o /tmp/carbonyl.zip -d /tmp
+    sudo mkdir -p /opt/carbonyl
+    sudo cp /tmp/carbonyl-"${CARBONYL_VERSION}"/* /opt/carbonyl/
+    sudo ln -sf /opt/carbonyl/carbonyl /usr/local/bin/carbonyl
+    rm -rf /tmp/carbonyl.zip /tmp/carbonyl-"${CARBONYL_VERSION}"
   fi
 
   # Install tmuxinator
