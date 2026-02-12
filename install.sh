@@ -20,7 +20,7 @@ install_macos() {
   fi
 
   echo "==> Installing dependencies..."
-  brew install stow neovim tmux alacritty zsh git lazygit direnv git-delta broot ripgrep fd node jq lazysql carbonyl infisical postgresql
+  brew install stow neovim tmux alacritty zsh git lazygit direnv git-delta broot ripgrep fd node jq lazysql carbonyl infisical postgresql pgvector
   brew install --cask nikitabobko/tap/aerospace
   gem install tmuxinator
 
@@ -129,7 +129,18 @@ install_linux() {
   # Install PostgreSQL
   if ! command -v psql &>/dev/null; then
     echo "==> Installing PostgreSQL..."
-    sudo apt install -y postgresql postgresql-client
+    sudo apt install -y postgresql postgresql-client postgresql-server-dev-all
+  fi
+
+  # Install pgvector
+  if ! sudo -u postgres psql -c "SELECT 1 FROM pg_extension WHERE extname='vector'" 2>/dev/null | grep -q 1; then
+    echo "==> Installing pgvector..."
+    cd /tmp
+    git clone --branch v0.8.0 https://github.com/pgvector/pgvector.git
+    cd pgvector
+    make && sudo make install
+    cd /tmp && rm -rf pgvector
+    cd "$DOTFILES_DIR"
   fi
 
   # Install tmuxinator

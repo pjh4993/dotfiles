@@ -116,7 +116,7 @@ elif [[ "$OSTYPE" == linux-gnu* ]]; then
 fi
 
 # hooks
-for hook in ~/.local/hooks/*.zsh; do
+for hook in ~/.local/hooks/*.zsh(N); do
   source "$hook"
 done
 
