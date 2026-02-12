@@ -20,7 +20,7 @@ install_macos() {
   fi
 
   echo "==> Installing dependencies..."
-  brew install stow neovim tmux alacritty zsh git lazygit direnv git-delta broot ripgrep fd node jq
+  brew install stow neovim tmux alacritty zsh git lazygit direnv git-delta broot ripgrep fd node jq lazysql
   brew install --cask nikitabobko/tap/aerospace
   gem install tmuxinator
 
@@ -83,6 +83,16 @@ install_linux() {
     curl -o /tmp/broot -fsSL https://dystroy.org/broot/download/x86_64-linux/broot
     sudo install /tmp/broot /usr/local/bin
     rm -f /tmp/broot
+  fi
+
+  # Install lazysql
+  if ! command -v lazysql &>/dev/null; then
+    echo "==> Installing lazysql..."
+    LAZYSQL_VERSION=$(curl -s "https://api.github.com/repos/jorgerojas26/lazysql/releases/latest" | grep -Po '"tag_name": "v\K[^"]*')
+    curl -Lo /tmp/lazysql.tar.gz "https://github.com/jorgerojas26/lazysql/releases/download/v${LAZYSQL_VERSION}/lazysql_Linux_x86_64.tar.gz"
+    tar xf /tmp/lazysql.tar.gz -C /tmp lazysql
+    sudo install /tmp/lazysql /usr/local/bin
+    rm -f /tmp/lazysql /tmp/lazysql.tar.gz
   fi
 
   # Install tmuxinator
