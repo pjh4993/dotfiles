@@ -1,0 +1,15 @@
+# Core
+stow
+tmux
+zsh
+git
+direnv
+curl
+unzip
+
+# CLI tools
+ripgrep
+fd-find
+jq
+sed
+just
