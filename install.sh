@@ -34,7 +34,7 @@ install_linux() {
 
   echo "==> Installing dependencies..."
   sudo apt update
-  sudo apt install -y stow tmux zsh git direnv curl unzip ripgrep fd-find nodejs npm jq
+  sudo apt install -y stow tmux zsh git direnv curl unzip ripgrep fd-find jq
   # Symlink fdfind to fd (Ubuntu/Debian installs fd as fdfind)
   if command -v fdfind &>/dev/null && ! command -v fd &>/dev/null; then
     mkdir -p "$HOME/.local/bin"
@@ -49,6 +49,17 @@ install_linux() {
   if [ "$HEADLESS" = false ] && ! command -v alacritty &>/dev/null; then
     echo "==> Installing Alacritty via snap..."
     sudo snap install alacritty --classic 2>/dev/null || echo "    Snap not available, install Alacritty manually"
+  fi
+
+  # Install nvm and Node.js
+  if ! command -v nvm &>/dev/null && [ ! -d "$HOME/.nvm" ]; then
+    echo "==> Installing nvm..."
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+    export NVM_DIR="$HOME/.nvm"
+    # shellcheck source=/dev/null
+    [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+    echo "==> Installing Node.js (latest LTS)..."
+    nvm install --lts
   fi
 
   # Install neovim from GitHub releases (apt version is too old for LazyVim)
