@@ -20,7 +20,7 @@ install_macos() {
   fi
 
   echo "==> Installing dependencies..."
-  brew install stow neovim tmux alacritty zsh git lazygit direnv git-delta broot ripgrep fd node jq lazysql carbonyl infisical postgresql pgvector
+  brew install stow neovim tmux alacritty zsh git lazygit direnv git-delta broot ripgrep fd node jq lazysql carbonyl infisical postgresql pgvector gnu-sed
   brew install --cask nikitabobko/tap/aerospace
   gem install tmuxinator
 
@@ -34,7 +34,7 @@ install_linux() {
 
   echo "==> Installing dependencies..."
   sudo apt update
-  sudo apt install -y stow tmux zsh git direnv curl unzip ripgrep fd-find jq
+  sudo apt install -y stow tmux zsh git direnv curl unzip ripgrep fd-find jq sed
   # Symlink fdfind to fd (Ubuntu/Debian installs fd as fdfind)
   if command -v fdfind &>/dev/null && ! command -v fd &>/dev/null; then
     mkdir -p "$HOME/.local/bin"
