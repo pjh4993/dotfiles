@@ -22,6 +22,7 @@ brew "lazygit"
 brew "lazysql"
 
 # Database
+brew "duckdb"
 brew "postgresql"
 brew "pgvector"
 

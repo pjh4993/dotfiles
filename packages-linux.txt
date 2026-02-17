@@ -8,6 +8,7 @@ curl
 unzip
 
 # CLI tools
+duckdb
 ripgrep
 fd-find
 jq
