@@ -64,7 +64,10 @@ ls)
 	git worktree list
 	;;
 status|st)
+	target="${1:-main}"
 	git_common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+	has_gh=false
+	command -v gh &>/dev/null && has_gh=true
 
 	# Last fetch time
 	fetch_head="$git_common_dir/FETCH_HEAD"
@@ -92,7 +95,7 @@ status|st)
 	echo ""
 
 	# Worktree branches vs origin
-	echo "Worktrees:"
+	echo "Worktrees (target: $target):"
 	while IFS= read -r line; do
 		wt_path=$(echo "$line" | awk '{print $1}')
 		wt_commit=$(echo "$line" | awk '{print $2}')
@@ -105,19 +108,84 @@ status|st)
 		local_commit=$(git rev-parse --short "refs/heads/$wt_branch" 2>/dev/null || echo "?")
 
 		if ! git show-ref --verify --quiet "refs/remotes/origin/$wt_branch" 2>/dev/null; then
-			sync="(local only)"
+			sync="local only"
 		elif [[ "$local_commit" == "$(git rev-parse --short "refs/remotes/origin/$wt_branch" 2>/dev/null)" ]]; then
-			sync="(synced)"
+			sync="synced"
 		else
 			ahead=$(git rev-list --count "refs/remotes/origin/$wt_branch..refs/heads/$wt_branch" 2>/dev/null || echo 0)
 			behind=$(git rev-list --count "refs/heads/$wt_branch..refs/remotes/origin/$wt_branch" 2>/dev/null || echo 0)
 			parts=()
 			(( ahead > 0 )) && parts+=("${ahead} ahead")
 			(( behind > 0 )) && parts+=("${behind} behind")
-			sync="($(IFS=', '; echo "${parts[*]}"))"
+			sync=$(printf '%s, ' "${parts[@]}"); sync="${sync%, }"
 		fi
 
-		printf "  %-30s %-12s %s %s\n" "$wt_branch" "${wt_commit:0:7}" "$sync" "$wt_path"
+		# Check working tree for dirty state
+		dirty=""
+		wt_status=$(git -C "$wt_path" status --porcelain 2>/dev/null || true)
+		if [[ -n "$wt_status" ]]; then
+			has_staged=false
+			has_unstaged=false
+			has_untracked=false
+			while IFS= read -r st_line; do
+				index="${st_line:0:1}"
+				worktree="${st_line:1:1}"
+				if [[ "$index" == "?" ]]; then
+					has_untracked=true
+				else
+					[[ "$index" != " " && "$index" != "?" ]] && has_staged=true
+					[[ "$worktree" != " " && "$worktree" != "?" ]] && has_unstaged=true
+				fi
+			done <<< "$wt_status"
+			dirty_parts=()
+			[[ "$has_staged" == true ]] && dirty_parts+=("staged")
+			[[ "$has_unstaged" == true ]] && dirty_parts+=("unstaged")
+			[[ "$has_untracked" == true ]] && dirty_parts+=("untracked")
+			dirty=$(printf '%s, ' "${dirty_parts[@]}"); dirty="${dirty%, }"
+		fi
+
+		# Merge status
+		merge_info=""
+		if [[ "$wt_branch" == "$target" ]]; then
+			merge_info=""
+		elif git merge-base --is-ancestor "refs/heads/$wt_branch" "refs/remotes/origin/$target" 2>/dev/null; then
+			# Regular merge — branch commits are ancestors of target
+			pr_info=""
+			if [[ "$has_gh" == true ]]; then
+				pr_info=$(gh pr list --head "$wt_branch" --state merged --json number,title --limit 1 --jq 'if length > 0 then "#\(.[0].number) \(.[0].title)" else empty end' 2>/dev/null || true)
+			fi
+			if [[ -n "$pr_info" ]]; then
+				merge_info="merged via $pr_info"
+			else
+				merge_info="merged"
+			fi
+		else
+			# Not a git ancestor — check gh for squash/rebase merges and open PRs
+			if [[ "$has_gh" == true ]]; then
+				merged_pr=$(gh pr list --head "$wt_branch" --state merged --json number,title --limit 1 --jq 'if length > 0 then "#\(.[0].number) \(.[0].title)" else empty end' 2>/dev/null || true)
+				if [[ -n "$merged_pr" ]]; then
+					merge_info="merged via $merged_pr"
+				else
+					open_pr=$(gh pr list --head "$wt_branch" --state open --json number,title --limit 1 --jq 'if length > 0 then "#\(.[0].number) \(.[0].title)" else empty end' 2>/dev/null || true)
+					if [[ -n "$open_pr" ]]; then
+						merge_info="open PR $open_pr"
+					else
+						merge_info="not merged"
+					fi
+				fi
+			else
+				merge_info="not merged"
+			fi
+		fi
+
+		# Build status line
+		status_parts="($sync)"
+		[[ -n "$dirty" ]] && status_parts="$status_parts [$dirty]"
+		if [[ -n "$merge_info" ]]; then
+			printf "  %-25s %-8s %-15s %s\n" "$wt_branch" "${wt_commit:0:7}" "$status_parts" "$merge_info"
+		else
+			printf "  %-25s %-8s %s\n" "$wt_branch" "${wt_commit:0:7}" "$status_parts"
+		fi
 	done < <(git worktree list)
 	echo ""
 
@@ -141,6 +209,43 @@ status|st)
 		echo "All remote branches have worktrees."
 	fi
 	;;
+clean)
+	target="${1:-main}"
+	root=$(_gwt_root)
+
+	git fetch origin "$target" 2>/dev/null
+
+	cleaned=0
+	while IFS= read -r line; do
+		wt_path=$(echo "$line" | awk '{print $1}')
+		wt_branch=$(echo "$line" | sed -n 's/.*\[\(.*\)\].*/\1/p')
+
+		[[ "$wt_path" == */.bare ]] && continue
+		[[ -z "$wt_branch" ]] && continue
+		[[ "$wt_branch" == "$target" ]] && continue
+
+		# Check if branch is merged (regular merge or squash/rebase via gh)
+		is_merged=false
+		if git merge-base --is-ancestor "refs/heads/$wt_branch" "refs/remotes/origin/$target" 2>/dev/null; then
+			is_merged=true
+		elif command -v gh &>/dev/null; then
+			merged_pr=$(gh pr list --head "$wt_branch" --state merged --json number --limit 1 --jq 'if length > 0 then "yes" else empty end' 2>/dev/null || true)
+			[[ -n "$merged_pr" ]] && is_merged=true
+		fi
+		if [[ "$is_merged" == true ]]; then
+			echo "==> Removing merged worktree: $wt_branch"
+			git worktree remove "$root/$wt_branch"
+			git branch -D "$wt_branch"
+			cleaned=$((cleaned + 1))
+		fi
+	done < <(git worktree list)
+
+	if (( cleaned == 0 )); then
+		echo "No merged worktrees to clean (target: $target)"
+	else
+		echo "==> Cleaned $cleaned merged worktree(s)"
+	fi
+	;;
 lazygit|lg)
 	if _is_bare_root; then
 		# At project root — find the first worktree that isn't the bare repo
@@ -162,7 +267,8 @@ lazygit|lg)
 	echo "  add <branch> [base]    Add worktree (creates branch if new)"
 	echo "  rm <branch>            Remove a worktree"
 	echo "  ls                     List all worktrees"
-	echo "  status|st              Show sync status of worktrees vs origin"
+	echo "  status|st [target]     Show sync/merge status of worktrees (default: main)"
+	echo "  clean [target]         Remove worktrees merged into target (default: main)"
 	echo "  lazygit|lg             Launch lazygit (auto-enters worktree if at bare root)"
 	;;
 esac
