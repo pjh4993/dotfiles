@@ -11,6 +11,8 @@ return {
         pattern = "*.parquet",
         callback = function()
           vim.cmd("DataExplorerFile")
+          vim.bo.readonly = true
+          vim.bo.modifiable = false
         end,
       })
     end,
