@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# git worktree helper (bare repo pattern)
+# Layout: <project>/.bare/ + <project>/<branch>/
+
+cmd="${1:-help}"
+shift 2>/dev/null || true
+
+_gwt_root() {
+	local dir
+	dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || {
+		echo "Not in a git worktree repo" >&2
+		return 1
+	}
+	echo "${dir%/.bare}"
+}
+
+case "$cmd" in
+clone)
+	url="$1"
+	dir="${2:-$(basename "$1" .git)}"
+	if [[ -z "$url" ]]; then
+		echo "Usage: gwt clone <url> [dir]" && exit 1
+	fi
+	git clone --bare "$url" "$dir/.bare"
+	echo "gitdir: ./.bare" > "$dir/.git"
+	cd "$dir"
+	git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
+	git fetch origin
+	default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')
+	default_branch="${default_branch:-main}"
+	git worktree add "$default_branch" "$default_branch"
+	echo "==> Ready: cd $dir/$default_branch"
+	;;
+add)
+	branch="$1"
+	base="${2:-HEAD}"
+	if [[ -z "$branch" ]]; then
+		echo "Usage: gwt add <branch> [base]" && exit 1
+	fi
+	root=$(_gwt_root)
+	if git show-ref --verify --quiet "refs/heads/$branch" 2>/dev/null; then
+		git worktree add "$root/$branch" "$branch"
+	else
+		git worktree add -b "$branch" "$root/$branch" "$base"
+	fi
+	echo "==> cd $root/$branch"
+	;;
+rm)
+	branch="$1"
+	if [[ -z "$branch" ]]; then
+		echo "Usage: gwt rm <branch>" && exit 1
+	fi
+	root=$(_gwt_root)
+	git worktree remove "$root/$branch"
+	;;
+ls)
+	git worktree list
+	;;
+*)
+	echo "Usage: gwt <command>"
+	echo ""
+	echo "Commands:"
+	echo "  clone <url> [dir]      Clone as bare repo with worktree layout"
+	echo "  add <branch> [base]    Add worktree (creates branch if new)"
+	echo "  rm <branch>            Remove a worktree"
+	echo "  ls                     List all worktrees"
+	;;
+esac

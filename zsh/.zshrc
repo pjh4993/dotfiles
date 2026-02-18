@@ -73,6 +73,7 @@ ZSH_THEME="robbyrussell"
 plugins=(git zsh-autosuggestions zsh-syntax-highlighting ssh-agent)
 
 source $ZSH/oh-my-zsh.sh
+unalias gwt 2>/dev/null # use ~/.local/bin/gwt instead
 
 # User configuration
 

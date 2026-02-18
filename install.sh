@@ -2,7 +2,7 @@
 set -euo pipefail
 
 DOTFILES_DIR="$(cd "$(dirname "$0")" && pwd)"
-BASE_PACKAGES=(nvim tmux zsh git lazygit)
+BASE_PACKAGES=(nvim tmux zsh git lazygit bin)
 
 HEADLESS=false
 for arg in "$@"; do
