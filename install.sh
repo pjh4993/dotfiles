@@ -20,12 +20,11 @@ install_macos() {
   fi
 
   echo "==> Installing dependencies..."
-  brew bundle --file="$DOTFILES_DIR/Brewfile"
-  gem install tmuxinator
+  brew bundle --file="$DOTFILES_DIR/Brewfile" || echo "    Some Brewfile entries failed (see above), continuing..."
 
   echo "==> Stowing packages..."
   cd "$DOTFILES_DIR"
-  stow "${BASE_PACKAGES[@]}" alacritty aerospace tmuxinator
+  stow -R "${BASE_PACKAGES[@]}" alacritty aerospace tmuxinator
 }
 
 install_linux() {
@@ -132,7 +131,11 @@ install_linux() {
   fi
 
   # Install pgvector
-  if ! sudo -u postgres psql -c "SELECT 1 FROM pg_extension WHERE extname='vector'" 2>/dev/null | grep -q 1; then
+  pgvector_installed=false
+  if sudo -u postgres psql -c "SELECT 1 FROM pg_extension WHERE extname='vector'" 2>/dev/null | grep -q 1; then
+    pgvector_installed=true
+  fi
+  if [ "$pgvector_installed" = false ]; then
     echo "==> Installing pgvector..."
     cd /tmp
     git clone --branch v0.8.0 https://github.com/pgvector/pgvector.git
@@ -165,14 +168,15 @@ install_linux() {
   echo "==> Stowing packages..."
   cd "$DOTFILES_DIR"
   if [ "$HEADLESS" = false ]; then
-    stow "${BASE_PACKAGES[@]}" alacritty i3 tmuxinator
+    stow -R "${BASE_PACKAGES[@]}" alacritty i3 tmuxinator
   else
-    stow "${BASE_PACKAGES[@]}" tmuxinator
+    stow -R "${BASE_PACKAGES[@]}" tmuxinator
   fi
 }
 
 echo "dotfiles installer"
 echo "=================="
+echo "    Safe to re-run — will install missing packages and restow configs"
 if [ "$HEADLESS" = true ]; then
   echo "    Mode: server (headless) — GUI packages will be skipped"
 fi

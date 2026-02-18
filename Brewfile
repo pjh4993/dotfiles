@@ -15,20 +15,21 @@ brew "jq"
 brew "gnu-sed"
 brew "broot"
 brew "git-delta"
-brew "carbonyl"
+# carbonyl — not in Homebrew, install from GitHub releases on Linux
 
 # TUI
 brew "lazygit"
 brew "lazysql"
+brew "tmuxinator"
 
 # Database
 brew "duckdb"
-brew "postgresql"
+brew "postgresql@17"
 brew "pgvector"
 
 # Secrets
 brew "infisical"
 
 # GUI
-brew "alacritty"
+cask "alacritty"
 cask "nikitabobko/tap/aerospace"
