@@ -236,6 +236,11 @@ clean)
 			echo "==> Removing merged worktree: $wt_branch"
 			git worktree remove "$root/$wt_branch"
 			git branch -D "$wt_branch"
+			# Delete remote branch if it exists
+			if git show-ref --verify --quiet "refs/remotes/origin/$wt_branch" 2>/dev/null; then
+				echo "    Deleting remote branch: origin/$wt_branch"
+				git push origin --delete "$wt_branch" 2>/dev/null || echo "    Failed to delete remote branch (may already be deleted)"
+			fi
 			cleaned=$((cleaned + 1))
 		fi
 	done < <(git worktree list)
@@ -244,6 +249,63 @@ clean)
 		echo "No merged worktrees to clean (target: $target)"
 	else
 		echo "==> Cleaned $cleaned merged worktree(s)"
+	fi
+	;;
+rename|mv)
+	old_branch="$1"
+	new_branch="$2"
+	if [[ -z "$old_branch" || -z "$new_branch" ]]; then
+		echo "Usage: gwt rename <old-branch> <new-branch>" && exit 1
+	fi
+	root=$(_gwt_root)
+	old_path="$root/$old_branch"
+	new_path="$root/$new_branch"
+
+	if [[ ! -d "$old_path" ]]; then
+		echo "Worktree not found: $old_path" >&2 && exit 1
+	fi
+
+	# Rename the branch
+	git branch -m "$old_branch" "$new_branch"
+	# Move the worktree directory
+	git worktree move "$old_path" "$new_path"
+	echo "==> Renamed: $old_branch -> $new_branch"
+	echo "==> cd $new_path"
+	;;
+rebase)
+	target="${1:-main}"
+	root=$(_gwt_root)
+	branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+
+	if [[ "$branch" == "$target" ]]; then
+		echo "Already on $target, nothing to rebase" && exit 0
+	fi
+
+	git fetch origin "$target" 2>/dev/null
+
+	# Stash dirty state if needed
+	stashed=false
+	if [[ -n $(git status --porcelain 2>/dev/null) ]]; then
+		echo "==> Stashing changes..."
+		git stash push -u -m "gwt-rebase: auto-stash before rebase on $target"
+		stashed=true
+	fi
+
+	echo "==> Rebasing $branch onto origin/$target..."
+	if git rebase "origin/$target"; then
+		echo "==> Rebase successful"
+	else
+		echo "==> Rebase failed — resolve conflicts, then run: git rebase --continue" >&2
+		if [[ "$stashed" == true ]]; then
+			echo "    Stashed changes will be restored after rebase completes: git stash pop" >&2
+		fi
+		exit 1
+	fi
+
+	# Restore stashed changes
+	if [[ "$stashed" == true ]]; then
+		echo "==> Restoring stashed changes..."
+		git stash pop
 	fi
 	;;
 lazygit|lg)
@@ -269,6 +331,8 @@ lazygit|lg)
 	echo "  ls                     List all worktrees"
 	echo "  status|st [target]     Show sync/merge status of worktrees (default: main)"
 	echo "  clean [target]         Remove worktrees merged into target (default: main)"
+	echo "  rename|mv <old> <new>  Rename worktree branch and directory"
+	echo "  rebase [target]        Rebase current branch onto target (default: main)"
 	echo "  lazygit|lg             Launch lazygit (auto-enters worktree if at bare root)"
 	;;
 esac
