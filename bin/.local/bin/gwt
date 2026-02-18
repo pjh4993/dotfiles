@@ -16,6 +16,11 @@ _gwt_root() {
 	echo "${dir%/.bare}"
 }
 
+# Check if cwd is a bare repo root (has .git file pointing to .bare/)
+_is_bare_root() {
+	[[ -f .git ]] && grep -q "gitdir: ./.bare" .git 2>/dev/null
+}
+
 case "$cmd" in
 clone)
 	url="$1"
@@ -58,6 +63,19 @@ rm)
 ls)
 	git worktree list
 	;;
+lazygit|lg)
+	if _is_bare_root; then
+		# At project root — find the first worktree that isn't the bare repo
+		worktree_path=$(git worktree list --porcelain | awk '/^worktree / && !/\.bare$/ {print $2; exit}')
+		if [[ -z "$worktree_path" ]]; then
+			echo "No worktrees found. Create one first: gwt add <branch>" >&2
+			exit 1
+		fi
+		echo "==> Entering worktree: $worktree_path"
+		cd "$worktree_path"
+	fi
+	exec lazygit "$@"
+	;;
 *)
 	echo "Usage: gwt <command>"
 	echo ""
@@ -66,5 +84,6 @@ ls)
 	echo "  add <branch> [base]    Add worktree (creates branch if new)"
 	echo "  rm <branch>            Remove a worktree"
 	echo "  ls                     List all worktrees"
+	echo "  lazygit|lg             Launch lazygit (auto-enters worktree if at bare root)"
 	;;
 esac

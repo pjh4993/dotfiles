@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Wrapper: auto-enters worktree when in a bare repo root
+
+if [[ -f .git ]] && grep -q "gitdir: ./.bare" .git 2>/dev/null; then
+	worktree_path=$(git worktree list --porcelain | awk '/^worktree / && !/\.bare$/ {print $2; exit}')
+	if [[ -n "$worktree_path" ]]; then
+		echo "==> bare repo root detected, entering worktree: $worktree_path"
+		cd "$worktree_path"
+	fi
+fi
+
+# Find the real lazygit binary (skip this wrapper)
+real_lazygit=$(PATH=$(echo "$PATH" | sed "s|$HOME/.local/bin:||g") command -v lazygit)
+exec "$real_lazygit" "$@"
