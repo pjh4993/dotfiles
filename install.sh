@@ -117,6 +117,15 @@ install_linux() {
     rm -rf /tmp/carbonyl.zip /tmp/carbonyl-"${CARBONYL_VERSION}"
   fi
 
+  # Install duckdb
+  if ! command -v duckdb &>/dev/null; then
+    echo "==> Installing duckdb..."
+    curl -fLo /tmp/duckdb.zip "https://github.com/duckdb/duckdb/releases/latest/download/duckdb_cli-linux-amd64.zip"
+    unzip -o /tmp/duckdb.zip -d /tmp
+    sudo install /tmp/duckdb /usr/local/bin
+    rm -f /tmp/duckdb /tmp/duckdb.zip
+  fi
+
   # Install infisical
   if ! command -v infisical &>/dev/null; then
     echo "==> Installing infisical..."
