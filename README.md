@@ -107,7 +107,7 @@ project/
 | Command | Description |
 |---------|-------------|
 | `gwt clone <url> [dir]` | Clone as bare repo with worktree layout |
-| `gwt add <branch> [base]` | Add worktree (creates branch if new) |
+| `gwt add <branch> [base]` | Add worktree (checks out local, tracks remote, or creates new branch) |
 | `gwt rm <branch>` | Remove a worktree |
 | `gwt ls` | List all worktrees |
 | `gwt status [target]` | Show sync/merge/dirty status per worktree |

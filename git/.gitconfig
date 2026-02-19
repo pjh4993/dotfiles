@@ -6,3 +6,5 @@
 [user]
 	name = pjh4993
 	email = pjh4993@naver.com
+[credential]
+	helper = cache --timeout=28800
