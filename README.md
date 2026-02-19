@@ -17,6 +17,7 @@ Personal configuration files managed with [GNU Stow](https://www.gnu.org/softwar
 | **octo.nvim** | GitHub PR/issue management | Both | Neovim plugin |
 | **tmuxinator** | Tmux session manager | Both | Default layout included |
 | **postgresql** | PostgreSQL 17 + pgvector | Both | `brew services start postgresql@17` |
+| **bin** | Shell scripts (`gwt`, `lazygit` wrapper) | Both | Stowed to `~/.local/bin` |
 
 ## Quick Setup
 
@@ -33,6 +34,7 @@ The install script automatically detects your OS and:
 - Installs Node.js via nvm (Linux) or brew (macOS)
 - Installs tmuxinator with default session layout
 - Stows the correct packages (skips aerospace on Linux, skips i3 on macOS)
+- Safe to re-run — installs missing packages and restows configs
 
 ### Linux Server (Headless)
 
@@ -80,4 +82,53 @@ cd ~/dotfiles && stow <name>
 
 ```bash
 cd ~/dotfiles && stow -D <name>
+```
+
+## gwt — Git Worktree Helper
+
+`gwt` manages bare repo + worktree workflows for multi-agent parallel development. Each branch gets its own directory under the project root.
+
+### Setup
+
+```bash
+gwt clone <url> [dir]    # Clone as bare repo with worktree layout
+```
+
+Layout:
+```
+project/
+  .bare/                 # bare repo
+  main/                  # worktree (main branch)
+  feat/add-login/        # worktree (feat/add-login branch)
+```
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `gwt clone <url> [dir]` | Clone as bare repo with worktree layout |
+| `gwt add <branch> [base]` | Add worktree (creates branch if new) |
+| `gwt rm <branch>` | Remove a worktree |
+| `gwt ls` | List all worktrees |
+| `gwt status [target]` | Show sync/merge/dirty status per worktree |
+| `gwt sync` | Pull remote changes for all worktrees (ff-only) |
+| `gwt rebase [target]` | Rebase current branch onto target (auto-stash) |
+| `gwt clean [target]` | Remove worktrees merged into target + delete remote branches |
+| `gwt rename <old> <new>` | Rename worktree branch and directory |
+| `gwt lazygit` | Launch lazygit (auto-enters worktree if at bare root) |
+
+Branch names with slashes (`feat/add-login`, `fix/auth-bug`) are fully supported — empty parent directories are cleaned up automatically.
+
+### Example workflow
+
+```bash
+gwt clone git@github.com:user/project.git
+cd project/main
+gwt add feat/new-feature
+cd ../feat/new-feature
+# ... work on feature ...
+gwt status              # check sync/merge status
+gwt rebase              # rebase onto origin/main
+gwt sync                # pull latest for all worktrees
+gwt clean               # remove merged worktrees + remote branches
 ```
