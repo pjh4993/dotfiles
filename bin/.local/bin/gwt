@@ -21,6 +21,20 @@ _is_bare_root() {
 	[[ -f .git ]] && grep -q "gitdir: ./.bare" .git 2>/dev/null
 }
 
+# Remove empty parent directories up to the project root
+_cleanup_empty_parents() {
+	local dir="$1" root="$2"
+	dir=$(dirname "$dir")
+	while [[ "$dir" != "$root" && "$dir" != "/" ]]; do
+		if [[ -d "$dir" ]] && [ -z "$(ls -A "$dir" 2>/dev/null)" ]; then
+			rmdir "$dir"
+			dir=$(dirname "$dir")
+		else
+			break
+		fi
+	done
+}
+
 case "$cmd" in
 clone)
 	url="$1"
@@ -59,6 +73,7 @@ rm)
 	fi
 	root=$(_gwt_root)
 	git worktree remove "$root/$branch"
+	_cleanup_empty_parents "$root/$branch" "$root"
 	;;
 ls)
 	git worktree list
@@ -235,6 +250,7 @@ clean)
 		if [[ "$is_merged" == true ]]; then
 			echo "==> Removing merged worktree: $wt_branch"
 			git worktree remove "$root/$wt_branch"
+			_cleanup_empty_parents "$root/$wt_branch" "$root"
 			git branch -D "$wt_branch"
 			# Delete remote branch if it exists
 			if git show-ref --verify --quiet "refs/remotes/origin/$wt_branch" 2>/dev/null; then
@@ -269,6 +285,7 @@ rename|mv)
 	git branch -m "$old_branch" "$new_branch"
 	# Move the worktree directory
 	git worktree move "$old_path" "$new_path"
+	_cleanup_empty_parents "$old_path" "$root"
 	echo "==> Renamed: $old_branch -> $new_branch"
 	echo "==> cd $new_path"
 	;;
@@ -308,6 +325,61 @@ rebase)
 		git stash pop
 	fi
 	;;
+sync)
+	echo "==> Fetching all remote branches..."
+	git fetch origin --prune
+
+	synced=0
+	skipped=0
+	while IFS= read -r line; do
+		wt_path=$(echo "$line" | awk '{print $1}')
+		wt_branch=$(echo "$line" | sed -n 's/.*\[\(.*\)\].*/\1/p')
+
+		[[ "$wt_path" == */.bare ]] && continue
+		[[ -z "$wt_branch" ]] && continue
+
+		# Skip if no remote tracking branch
+		if ! git show-ref --verify --quiet "refs/remotes/origin/$wt_branch" 2>/dev/null; then
+			continue
+		fi
+
+		local_commit=$(git rev-parse "refs/heads/$wt_branch" 2>/dev/null)
+		remote_commit=$(git rev-parse "refs/remotes/origin/$wt_branch" 2>/dev/null)
+
+		# Already up to date
+		if [[ "$local_commit" == "$remote_commit" ]]; then
+			continue
+		fi
+
+		# Check for dirty state in the worktree
+		wt_dirty=$(git -C "$wt_path" status --porcelain 2>/dev/null || true)
+
+		# Check if fast-forward is possible
+		if git merge-base --is-ancestor "refs/heads/$wt_branch" "refs/remotes/origin/$wt_branch" 2>/dev/null; then
+			if [[ -n "$wt_dirty" ]]; then
+				echo "==> $wt_branch: stashing changes..."
+				git -C "$wt_path" stash push -u -m "gwt-sync: auto-stash before pull"
+				git -C "$wt_path" merge --ff-only "origin/$wt_branch"
+				echo "==> $wt_branch: restoring stashed changes..."
+				git -C "$wt_path" stash pop
+			else
+				git -C "$wt_path" merge --ff-only "origin/$wt_branch"
+			fi
+			echo "==> $wt_branch: fast-forwarded"
+			synced=$((synced + 1))
+		else
+			echo "    $wt_branch: diverged from origin (skipped, use gwt rebase)"
+			skipped=$((skipped + 1))
+		fi
+	done < <(git worktree list)
+
+	if (( synced == 0 && skipped == 0 )); then
+		echo "==> All worktrees up to date"
+	else
+		(( synced > 0 )) && echo "==> Synced $synced worktree(s)"
+		(( skipped > 0 )) && echo "    Skipped $skipped diverged worktree(s)"
+	fi
+	;;
 lazygit|lg)
 	if _is_bare_root; then
 		# At project root — find the first worktree that isn't the bare repo
@@ -333,6 +405,7 @@ lazygit|lg)
 	echo "  clean [target]         Remove worktrees merged into target (default: main)"
 	echo "  rename|mv <old> <new>  Rename worktree branch and directory"
 	echo "  rebase [target]        Rebase current branch onto target (default: main)"
+	echo "  sync                   Pull remote changes for all worktrees (ff-only)"
 	echo "  lazygit|lg             Launch lazygit (auto-enters worktree if at bare root)"
 	;;
 esac
