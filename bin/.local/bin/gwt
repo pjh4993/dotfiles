@@ -59,8 +59,11 @@ add)
 		echo "Usage: gwt add <branch> [base]" && exit 1
 	fi
 	root=$(_gwt_root)
+	git fetch origin 2>/dev/null || true
 	if git show-ref --verify --quiet "refs/heads/$branch" 2>/dev/null; then
 		git worktree add "$root/$branch" "$branch"
+	elif git show-ref --verify --quiet "refs/remotes/origin/$branch" 2>/dev/null; then
+		git worktree add --track -b "$branch" "$root/$branch" "origin/$branch"
 	else
 		git worktree add -b "$branch" "$root/$branch" "$base"
 	fi
