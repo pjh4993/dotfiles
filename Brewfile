@@ -2,6 +2,7 @@
 brew "stow"
 brew "zsh"
 brew "git"
+brew "git-lfs"
 brew "neovim"
 brew "tmux"
 brew "direnv"
@@ -29,6 +30,9 @@ brew "pgvector"
 
 # Secrets
 brew "infisical"
+
+# Notifications
+brew "terminal-notifier"
 
 # GUI
 cask "alacritty"

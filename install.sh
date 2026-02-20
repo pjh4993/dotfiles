@@ -22,9 +22,12 @@ install_macos() {
   echo "==> Installing dependencies..."
   brew bundle --file="$DOTFILES_DIR/Brewfile" || echo "    Some Brewfile entries failed (see above), continuing..."
 
+  echo "==> Setting up git-lfs..."
+  git lfs install
+
   echo "==> Stowing packages..."
   cd "$DOTFILES_DIR"
-  stow -R "${BASE_PACKAGES[@]}" alacritty aerospace tmuxinator
+  stow -R "${BASE_PACKAGES[@]}" alacritty aerospace tmuxinator claude
 }
 
 install_linux() {
@@ -79,6 +82,10 @@ install_linux() {
     sudo install /tmp/lazygit /usr/local/bin
     rm -f /tmp/lazygit /tmp/lazygit.tar.gz
   fi
+
+  # Setup git-lfs
+  echo "==> Setting up git-lfs..."
+  git lfs install
 
   # Install git-delta
   if ! command -v delta &>/dev/null; then
@@ -177,9 +184,9 @@ install_linux() {
   echo "==> Stowing packages..."
   cd "$DOTFILES_DIR"
   if [ "$HEADLESS" = false ]; then
-    stow -R "${BASE_PACKAGES[@]}" alacritty i3 tmuxinator
+    stow -R "${BASE_PACKAGES[@]}" alacritty i3 tmuxinator claude
   else
-    stow -R "${BASE_PACKAGES[@]}" tmuxinator
+    stow -R "${BASE_PACKAGES[@]}" tmuxinator claude
   fi
 }
 

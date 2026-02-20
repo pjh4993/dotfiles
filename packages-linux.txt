@@ -3,6 +3,7 @@ stow
 tmux
 zsh
 git
+git-lfs
 direnv
 curl
 unzip
