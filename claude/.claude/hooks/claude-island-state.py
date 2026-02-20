@@ -260,10 +260,12 @@ def main():
 
     elif event == "Stop":
         state["status"] = "waiting_for_input"
+        state["last_assistant_message"] = data.get("last_assistant_message", "")
 
     elif event == "SubagentStop":
         # SubagentStop fires when a subagent completes - usually means back to waiting
         state["status"] = "waiting_for_input"
+        state["last_assistant_message"] = data.get("last_assistant_message", "")
 
     elif event == "SessionStart":
         # New session starts waiting for user input
