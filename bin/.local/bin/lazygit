@@ -10,5 +10,5 @@ if [[ -f .git ]] && grep -q "gitdir: ./.bare" .git 2>/dev/null; then
 fi
 
 # Find the real lazygit binary (skip this wrapper)
-real_lazygit=$(PATH=$(echo "$PATH" | sed "s|$HOME/.local/bin:||g") command -v lazygit)
+real_lazygit=$(PATH=$(echo "$PATH" | sed "s|$HOME/\.local/bin||g" | sed 's/::/:/g; s/^://; s/:$//') command -v lazygit)
 exec "$real_lazygit" "$@"
