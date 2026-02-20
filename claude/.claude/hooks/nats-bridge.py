@@ -169,6 +169,13 @@ def resolve_ssh_host(remote_hostname):
     for config_hostname, alias in ssh_hostname_map.items():
         if config_hostname.startswith(remote_hostname + ".") or remote_hostname.startswith(config_hostname + "."):
             return alias
+    # K8s: pod hostname (name-<hash>-<hash>) vs service FQDN (name-svc.domain)
+    for config_hostname, alias in ssh_hostname_map.items():
+        svc_idx = config_hostname.find("-svc.")
+        if svc_idx > 0:
+            base = config_hostname[:svc_idx]
+            if remote_hostname.startswith(base + "-") or remote_hostname == base:
+                return alias
     return None
 
 
@@ -362,7 +369,9 @@ async def run_bridge():
         session = state.get("session_id", "?")[:8]
         event = state.get("event", "?")
         status = state.get("status", "?")
-        print(f"[{time.strftime('%H:%M:%S')}] {label}: {session} {event}={status}")
+        pid = state.get("pid")
+        tty = state.get("tty", "")
+        print(f"[{time.strftime('%H:%M:%S')}] {label}: {session} {event}={status} pid={pid} tty={tty}")
 
     async def handle_permission(msg):
         """Handle request/reply permission events — forward to Claude Island and reply"""
