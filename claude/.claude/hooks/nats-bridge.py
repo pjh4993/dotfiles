@@ -77,6 +77,8 @@ def write_transcript(state, transcript_path):
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
     wrote = False
 
+    # Only write user-facing messages (user prompts + final assistant text)
+    # Skip: PreToolUse (tool operations), SubagentStop (internal subagent responses)
     if event == "UserPromptSubmit":
         user_prompt = state.get("user_prompt", "") or "(remote session)"
         msg_uuid = str(uuid_mod.uuid4())
@@ -95,31 +97,7 @@ def write_transcript(state, transcript_path):
         last_uuid[session_id] = msg_uuid
         wrote = True
 
-    elif event == "PreToolUse":
-        tool = state.get("tool", "unknown")
-        tool_input = state.get("tool_input", {})
-        tool_use_id = state.get("tool_use_id", str(uuid_mod.uuid4()))
-        msg_uuid = str(uuid_mod.uuid4())
-        append_entry(transcript_path, {
-            "parentUuid": last_uuid.get(session_id),
-            "isSidechain": False,
-            "userType": "external",
-            "cwd": cwd,
-            "sessionId": session_id,
-            "version": "remote-bridge",
-            "type": "assistant",
-            "uuid": msg_uuid,
-            "timestamp": now,
-            "message": {
-                "type": "message",
-                "role": "assistant",
-                "content": [{"type": "tool_use", "id": tool_use_id, "name": tool, "input": tool_input}],
-            },
-        })
-        last_uuid[session_id] = msg_uuid
-        wrote = True
-
-    elif event in ("Stop", "SubagentStop"):
+    elif event == "Stop":
         message_text = state.get("last_assistant_message", "")
         if message_text:
             msg_uuid = str(uuid_mod.uuid4())
