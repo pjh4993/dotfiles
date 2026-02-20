@@ -11,6 +11,82 @@ import sys
 
 SOCKET_PATH = "/tmp/claude-island.sock"
 TIMEOUT_SECONDS = 300  # 5 minutes for permission decisions
+NATS_HOST = "localhost"
+NATS_PORT = 4222
+NATS_SUBJECT_STATE = "claude.island.state"
+NATS_SUBJECT_PERMISSION = "claude.island.permission"
+
+
+def is_remote():
+    """Detect if running in a remote SSH session"""
+    return bool(
+        os.environ.get("SSH_CLIENT")
+        or os.environ.get("SSH_TTY")
+        or os.environ.get("SSH_CONNECTION")
+    )
+
+
+def nats_publish(subject, payload):
+    """Publish a message via raw NATS protocol (no library needed)"""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(5)
+        s.connect((NATS_HOST, NATS_PORT))
+        # Read server INFO
+        s.recv(4096)
+        # Send CONNECT
+        s.sendall(b"CONNECT {}\r\n")
+        # PUB subject length\r\npayload\r\n
+        data = payload.encode("utf-8")
+        s.sendall(f"PUB {subject} {len(data)}\r\n".encode())
+        s.sendall(data + b"\r\n")
+        s.sendall(b"PING\r\n")
+        s.recv(4096)  # wait for PONG to ensure delivery
+        s.close()
+    except Exception:
+        pass
+
+
+def nats_request(subject, payload, timeout=300):
+    """Send a NATS request and wait for reply (raw protocol, no library needed)"""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(timeout)
+        s.connect((NATS_HOST, NATS_PORT))
+        # Read server INFO
+        s.recv(4096)
+        # Send CONNECT
+        s.sendall(b"CONNECT {}\r\n")
+        # Subscribe to a unique inbox for the reply
+        inbox = f"_INBOX.{os.getpid()}.{id(s)}"
+        s.sendall(f"SUB {inbox} 1\r\n".encode())
+        # PUB with reply-to
+        data = payload.encode("utf-8")
+        s.sendall(f"PUB {subject} {inbox} {len(data)}\r\n".encode())
+        s.sendall(data + b"\r\n")
+        s.sendall(b"PING\r\n")
+        # Read until we get a MSG
+        buf = b""
+        while True:
+            chunk = s.recv(4096)
+            if not chunk:
+                break
+            buf += chunk
+            text = buf.decode("utf-8", errors="replace")
+            if "MSG " in text:
+                # Parse MSG inbox sid length\r\npayload\r\n
+                lines = text.split("\r\n")
+                for i, line in enumerate(lines):
+                    if line.startswith("MSG "):
+                        parts = line.split()
+                        msg_len = int(parts[-1])
+                        msg_payload = lines[i + 1][:msg_len]
+                        s.close()
+                        return json.loads(msg_payload)
+        s.close()
+    except Exception:
+        pass
+    return None
 
 
 def get_tty():
@@ -68,6 +144,9 @@ def send_event(state):
 
         return None
     except (socket.error, OSError, json.JSONDecodeError):
+        # Socket unavailable — fall back to NATS for remote sessions
+        if is_remote():
+            nats_publish(NATS_SUBJECT_STATE, json.dumps(state))
         return None
 
 
@@ -126,8 +205,14 @@ def main():
         state["tool_input"] = tool_input
         # tool_use_id lookup handled by Swift-side cache from PreToolUse
 
-        # Send to app and wait for decision
-        response = send_event(state)
+        # Remote: use NATS request/reply for bidirectional approve/deny
+        if is_remote():
+            response = nats_request(
+                NATS_SUBJECT_PERMISSION, json.dumps(state)
+            )
+        else:
+            # Local: send to app via Unix socket and wait for decision
+            response = send_event(state)
 
         if response:
             decision = response.get("decision", "ask")
