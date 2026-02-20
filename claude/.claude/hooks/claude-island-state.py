@@ -3,14 +3,77 @@
 Claude Island Hook
 - Sends session state to ClaudeIsland.app via Unix socket
 - For PermissionRequest: waits for user decision from the app
+- Remote fallback: sends events via ntfy.sh when socket is unavailable
 """
 import json
 import os
 import socket
 import sys
+import urllib.request
 
 SOCKET_PATH = "/tmp/claude-island.sock"
 TIMEOUT_SECONDS = 300  # 5 minutes for permission decisions
+NTFY_TOPIC = "pyler-claude-cozhqjel"
+
+
+def is_remote():
+    """Detect if running in a remote SSH session"""
+    return bool(
+        os.environ.get("SSH_CLIENT")
+        or os.environ.get("SSH_TTY")
+        or os.environ.get("SSH_CONNECTION")
+    )
+
+
+def send_ntfy(state):
+    """Send event to ntfy.sh as a fallback for remote sessions"""
+    status = state.get("status", "unknown")
+    event = state.get("event", "")
+    cwd = state.get("cwd", "")
+    project = os.path.basename(cwd)
+    hostname = socket.gethostname()
+
+    # Build a human-readable message
+    tool = state.get("tool", "")
+    message = state.get("message", "")
+
+    status_labels = {
+        "processing": "Processing...",
+        "running_tool": f"Running: {tool}",
+        "waiting_for_input": "Waiting for input",
+        "waiting_for_approval": f"Permission needed: {tool}",
+        "notification": message or "Notification",
+        "compacting": "Compacting context",
+        "ended": "Session ended",
+    }
+    body = status_labels.get(status, status)
+
+    # Set priority based on status
+    priority = "default"
+    tags = "robot_face"
+    if status == "waiting_for_input":
+        priority = "high"
+        tags = "white_check_mark"
+    elif status == "waiting_for_approval":
+        priority = "urgent"
+        tags = "warning"
+
+    title = f"[{hostname}] {project}"
+
+    try:
+        data = body.encode("utf-8")
+        req = urllib.request.Request(
+            f"https://ntfy.sh/{NTFY_TOPIC}",
+            data=data,
+            headers={
+                "Title": title,
+                "Priority": priority,
+                "Tags": tags,
+            },
+        )
+        urllib.request.urlopen(req, timeout=5)
+    except Exception:
+        pass
 
 
 def get_tty():
@@ -68,6 +131,9 @@ def send_event(state):
 
         return None
     except (socket.error, OSError, json.JSONDecodeError):
+        # Socket unavailable — fall back to ntfy for remote sessions
+        if is_remote():
+            send_ntfy(state)
         return None
 
 
@@ -124,6 +190,11 @@ def main():
         state["tool"] = data.get("tool_name")
         state["tool_input"] = tool_input
         # tool_use_id lookup handled by Swift-side cache from PreToolUse
+
+        # Remote sessions: send ntfy notification but skip bidirectional approval
+        if is_remote():
+            send_ntfy(state)
+            sys.exit(0)
 
         # Send to app and wait for decision
         response = send_event(state)
