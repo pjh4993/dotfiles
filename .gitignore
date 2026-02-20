@@ -2,3 +2,7 @@
 *.swp
 *.swo
 *~
+
+# SSH private host configs (contain internal hostnames/IPs)
+ssh/.ssh/config.d/*
+!ssh/.ssh/config.d/.gitkeep

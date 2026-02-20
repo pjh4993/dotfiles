@@ -27,7 +27,7 @@ install_macos() {
 
   echo "==> Stowing packages..."
   cd "$DOTFILES_DIR"
-  stow -R "${BASE_PACKAGES[@]}" alacritty aerospace tmuxinator claude
+  stow -R "${BASE_PACKAGES[@]}" alacritty aerospace tmuxinator claude ssh
 }
 
 install_linux() {
@@ -184,9 +184,9 @@ install_linux() {
   echo "==> Stowing packages..."
   cd "$DOTFILES_DIR"
   if [ "$HEADLESS" = false ]; then
-    stow -R "${BASE_PACKAGES[@]}" alacritty i3 tmuxinator claude
+    stow -R "${BASE_PACKAGES[@]}" alacritty i3 tmuxinator claude ssh
   else
-    stow -R "${BASE_PACKAGES[@]}" tmuxinator claude
+    stow -R "${BASE_PACKAGES[@]}" tmuxinator claude ssh
   fi
 }
 
