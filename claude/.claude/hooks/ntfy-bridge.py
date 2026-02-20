@@ -35,53 +35,122 @@ last_uuid = {}
 
 
 def cwd_to_project_dir(cwd):
-    """Convert a remote cwd like /home/pyler/project to Claude's project dir name"""
-    # Claude Code uses the pattern: replace / with - and prepend -
-    # e.g. /Users/pyler/dotfiles -> -Users-pyler-dotfiles
-    return "-" + cwd.strip("/").replace("/", "-")
+    """Convert a remote cwd like /home/pyler/project to Claude's project dir name.
+    Must match Claude Island's ConversationParser.sessionFilePath() exactly:
+    cwd.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ".", with: "-")
+    """
+    return cwd.replace("/", "-").replace(".", "-")
 
 
-def write_transcript(state):
-    """Write assistant message to a local transcript .jsonl file"""
-    message_text = state.get("last_assistant_message", "")
-    if not message_text:
-        return None
-
-    session_id = state.get("session_id", "unknown")
+def get_transcript_path(state):
+    """Get the local transcript path for a remote session"""
     cwd = state.get("cwd", "/tmp")
-
-    # Create project directory
+    session_id = state.get("session_id", "unknown")
     project_dir_name = cwd_to_project_dir(cwd)
     project_dir = os.path.join(CLAUDE_PROJECTS, project_dir_name)
     os.makedirs(project_dir, exist_ok=True)
+    return os.path.join(project_dir, f"{session_id}.jsonl")
 
-    transcript_path = os.path.join(project_dir, f"{session_id}.jsonl")
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-    msg_uuid = str(uuid.uuid4())
-    parent = last_uuid.get(session_id)
 
-    entry = {
-        "parentUuid": parent,
-        "isSidechain": False,
-        "userType": "external",
-        "cwd": cwd,
-        "sessionId": session_id,
-        "version": "remote-bridge",
-        "type": "assistant",
-        "message": {
-            "type": "message",
-            "role": "assistant",
-            "content": [{"type": "text", "text": message_text}],
-        },
-        "uuid": msg_uuid,
-        "timestamp": now,
-    }
-
+def append_entry(transcript_path, entry):
+    """Append a JSONL entry to the transcript file.
+    Must use compact JSON (no spaces) because Claude Island's parser
+    matches lines with line.contains('"type":"user"') — no space after colon.
+    """
     with open(transcript_path, "a") as f:
-        f.write(json.dumps(entry) + "\n")
+        f.write(json.dumps(entry, separators=(",", ":")) + "\n")
 
-    last_uuid[session_id] = msg_uuid
-    return transcript_path
+
+def write_transcript(state, transcript_path):
+    """Write transcript entries based on event type.
+    Returns True if something was written."""
+    session_id = state.get("session_id", "unknown")
+    cwd = state.get("cwd", "/tmp")
+    event = state.get("event", "")
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    wrote = False
+
+    if event == "UserPromptSubmit":
+        # Write the actual user prompt
+        user_prompt = state.get("user_prompt", "") or "(remote session)"
+        msg_uuid = str(uuid.uuid4())
+        entry = {
+            "parentUuid": last_uuid.get(session_id),
+            "isSidechain": False,
+            "userType": "external",
+            "cwd": cwd,
+            "sessionId": session_id,
+            "version": "remote-bridge",
+            "type": "user",
+            "uuid": msg_uuid,
+            "timestamp": now,
+            "message": {
+                "content": user_prompt,
+            },
+        }
+        append_entry(transcript_path, entry)
+        last_uuid[session_id] = msg_uuid
+        wrote = True
+
+    elif event == "PreToolUse":
+        # Write a tool_use entry
+        tool = state.get("tool", "unknown")
+        tool_input = state.get("tool_input", {})
+        tool_use_id = state.get("tool_use_id", str(uuid.uuid4()))
+        msg_uuid = str(uuid.uuid4())
+        entry = {
+            "parentUuid": last_uuid.get(session_id),
+            "isSidechain": False,
+            "userType": "external",
+            "cwd": cwd,
+            "sessionId": session_id,
+            "version": "remote-bridge",
+            "type": "assistant",
+            "uuid": msg_uuid,
+            "timestamp": now,
+            "message": {
+                "type": "message",
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": tool_use_id,
+                        "name": tool,
+                        "input": tool_input,
+                    }
+                ],
+            },
+        }
+        append_entry(transcript_path, entry)
+        last_uuid[session_id] = msg_uuid
+        wrote = True
+
+    elif event in ("Stop", "SubagentStop"):
+        # Write assistant message if present
+        message_text = state.get("last_assistant_message", "")
+        if message_text:
+            msg_uuid = str(uuid.uuid4())
+            entry = {
+                "parentUuid": last_uuid.get(session_id),
+                "isSidechain": False,
+                "userType": "external",
+                "cwd": cwd,
+                "sessionId": session_id,
+                "version": "remote-bridge",
+                "type": "assistant",
+                "uuid": msg_uuid,
+                "timestamp": now,
+                "message": {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": message_text}],
+                },
+            }
+            append_entry(transcript_path, entry)
+            last_uuid[session_id] = msg_uuid
+            wrote = True
+
+    return wrote
 
 
 def forward_to_island(state):
@@ -130,20 +199,15 @@ def subscribe():
                         print(f"[{time.strftime('%H:%M:%S')}] invalid JSON: {body[:100]}")
                         continue
 
-                    # Ensure transcript_path is set for all remote events
-                    # so Claude Island can find the local transcript file
-                    cwd = state.get("cwd", "/tmp")
-                    sid = state.get("session_id", "unknown")
-                    project_dir = cwd_to_project_dir(cwd)
-                    local_transcript = os.path.join(
-                        CLAUDE_PROJECTS, project_dir, f"{sid}.jsonl"
-                    )
-                    state["transcript_path"] = local_transcript
+                    # Set local transcript path for Claude Island
+                    transcript_path = get_transcript_path(state)
+                    state["transcript_path"] = transcript_path
 
-                    # Write transcript for messages with content
-                    transcript_path = write_transcript(state)
-                    if transcript_path:
-                        print(f"[{time.strftime('%H:%M:%S')}] transcript: {transcript_path}")
+                    # Write transcript entries BEFORE forwarding to socket
+                    # (Claude Island re-reads the file when it receives socket events)
+                    wrote = write_transcript(state, transcript_path)
+                    if wrote:
+                        print(f"[{time.strftime('%H:%M:%S')}] wrote: {transcript_path}")
 
                     forwarded = forward_to_island(state)
                     label = "forwarded" if forwarded else "socket unavailable"

@@ -3,45 +3,14 @@
 Claude Island Hook
 - Sends session state to ClaudeIsland.app via Unix socket
 - For PermissionRequest: waits for user decision from the app
-- Remote fallback: sends events via ntfy.sh when socket is unavailable
 """
 import json
 import os
 import socket
 import sys
-import urllib.request
 
 SOCKET_PATH = "/tmp/claude-island.sock"
 TIMEOUT_SECONDS = 300  # 5 minutes for permission decisions
-NTFY_TOPIC = "pyler-claude-cozhqjel"
-
-
-def is_remote():
-    """Detect if running in a remote SSH session"""
-    return bool(
-        os.environ.get("SSH_CLIENT")
-        or os.environ.get("SSH_TTY")
-        or os.environ.get("SSH_CONNECTION")
-    )
-
-
-def send_ntfy(state):
-    """Send full state JSON to ntfy.sh for the bridge to forward to Claude Island"""
-    try:
-        # Send full state as JSON body with "bridge" tag so ntfy-bridge.py
-        # can forward it directly to Claude Island's socket without data loss
-        payload = json.dumps(state).encode("utf-8")
-        req = urllib.request.Request(
-            f"https://ntfy.sh/{NTFY_TOPIC}",
-            data=payload,
-            headers={
-                "Title": "claude-island-bridge",
-                "Tags": "bridge",
-            },
-        )
-        urllib.request.urlopen(req, timeout=5)
-    except Exception:
-        pass
 
 
 def get_tty():
@@ -99,9 +68,6 @@ def send_event(state):
 
         return None
     except (socket.error, OSError, json.JSONDecodeError):
-        # Socket unavailable — fall back to ntfy for remote sessions
-        if is_remote():
-            send_ntfy(state)
         return None
 
 
@@ -115,7 +81,6 @@ def main():
     event = data.get("hook_event_name", "")
     cwd = data.get("cwd", "")
     tool_input = data.get("tool_input", {})
-    transcript_path = data.get("transcript_path", "")
 
     # Get process info
     claude_pid = os.getppid()
@@ -128,13 +93,13 @@ def main():
         "event": event,
         "pid": claude_pid,
         "tty": tty,
-        "transcript_path": transcript_path,
     }
 
     # Map events to status
     if event == "UserPromptSubmit":
         # User just sent a message - Claude is now processing
         state["status"] = "processing"
+        state["user_prompt"] = data.get("prompt", "")
 
     elif event == "PreToolUse":
         state["status"] = "running_tool"
@@ -160,11 +125,6 @@ def main():
         state["tool"] = data.get("tool_name")
         state["tool_input"] = tool_input
         # tool_use_id lookup handled by Swift-side cache from PreToolUse
-
-        # Remote sessions: send ntfy notification but skip bidirectional approval
-        if is_remote():
-            send_ntfy(state)
-            sys.exit(0)
 
         # Send to app and wait for decision
         response = send_event(state)
@@ -215,12 +175,10 @@ def main():
 
     elif event == "Stop":
         state["status"] = "waiting_for_input"
-        state["last_assistant_message"] = data.get("last_assistant_message", "")
 
     elif event == "SubagentStop":
         # SubagentStop fires when a subagent completes - usually means back to waiting
         state["status"] = "waiting_for_input"
-        state["last_assistant_message"] = data.get("last_assistant_message", "")
 
     elif event == "SessionStart":
         # New session starts waiting for user input
