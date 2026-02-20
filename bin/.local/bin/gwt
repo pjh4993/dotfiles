@@ -50,6 +50,12 @@ clone)
 	default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')
 	default_branch="${default_branch:-main}"
 	git worktree add "$default_branch" "$default_branch"
+	# Copy worktree-root CLAUDE.md template if available
+	gwt_claude_md="${XDG_DATA_HOME:-$HOME/.local/share}/gwt/CLAUDE.md"
+	if [[ -f "$gwt_claude_md" ]]; then
+		cp "$gwt_claude_md" CLAUDE.md
+		echo "==> Copied CLAUDE.md template"
+	fi
 	echo "==> Ready: cd $dir/$default_branch"
 	;;
 add)

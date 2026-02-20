@@ -2,6 +2,7 @@
 *.swp
 *.swo
 *~
+__pycache__/
 
 # SSH private host configs (contain internal hostnames/IPs)
 ssh/.ssh/config.d/*

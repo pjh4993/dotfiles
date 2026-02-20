@@ -132,3 +132,19 @@ gwt rebase              # rebase onto origin/main
 gwt sync                # pull latest for all worktrees
 gwt clean               # remove merged worktrees + remote branches
 ```
+
+## Claude Island — Remote Session Support
+
+[Claude Island](https://github.com/pjh4993/ClaudeIsland) is a macOS menu bar app that monitors Claude Code sessions. The bundled hook script (`ClaudeIsland/Resources/claude-island-state.py`) supports both local and remote sessions:
+
+- **Local sessions** — communicates via Unix socket at `/tmp/claude-island.sock`
+- **Remote sessions (SSH)** — auto-detects SSH and falls back to NATS transport, forwarding events to a local bridge daemon
+
+For remote session setup, see [`scripts/remote/README.md`](scripts/remote/README.md).
+
+### Quick Start (Remote)
+
+1. Run a NATS server locally: `brew install nats-server && nats-server &`
+2. Add `RemoteForward 4222 localhost:4222` to your SSH config
+3. Start the bridge: `python3 scripts/remote/nats-bridge.py start`
+4. Install the hook on the remote machine (same `claude-island-state.py`)
