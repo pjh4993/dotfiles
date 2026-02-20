@@ -21,6 +21,7 @@ import asyncio
 import glob as glob_mod
 import json
 import os
+import shutil
 import signal
 import socket as sock
 import subprocess
@@ -38,6 +39,7 @@ CLAUDE_PROJECTS = os.path.expanduser("~/.claude/projects")
 
 PROXY_SESSION = "claude-nats-proxy"
 PROXY_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "nats-proxy-pane.py")
+TMUX_BIN = shutil.which("tmux") or "/opt/homebrew/bin/tmux"
 
 # Track parent UUIDs per session for transcript chaining
 last_uuid = {}
@@ -195,7 +197,7 @@ def resolve_ssh_host(remote_hostname):
 def cleanup_proxy_session():
     """Kill stale proxy session from previous runs"""
     subprocess.run(
-        ["tmux", "kill-session", "-t", PROXY_SESSION],
+        [TMUX_BIN, "kill-session", "-t", PROXY_SESSION],
         capture_output=True, timeout=5,
     )
     proxy_panes.clear()
@@ -207,27 +209,28 @@ def create_proxy_pane(session_id, ssh_host, remote_target):
 
     # Check if proxy session exists
     result = subprocess.run(
-        ["tmux", "has-session", "-t", PROXY_SESSION],
+        [TMUX_BIN, "has-session", "-t", PROXY_SESSION],
         capture_output=True, timeout=5,
     )
-    cmd = f"python3 {PROXY_SCRIPT} {session_id} {ssh_host} {remote_target}"
+    python_bin = shutil.which("python3") or sys.executable
+    cmd = f"{python_bin} {PROXY_SCRIPT} {session_id} {ssh_host} {remote_target}"
 
     if result.returncode != 0:
         # Create session with first window
         subprocess.run(
-            ["tmux", "new-session", "-d", "-s", PROXY_SESSION, "-n", window_name, cmd],
+            [TMUX_BIN, "new-session", "-d", "-s", PROXY_SESSION, "-n", window_name, cmd],
             capture_output=True, timeout=5,
         )
     else:
         # Add window to existing session
         subprocess.run(
-            ["tmux", "new-window", "-d", "-t", PROXY_SESSION, "-n", window_name, cmd],
+            [TMUX_BIN, "new-window", "-d", "-t", PROXY_SESSION, "-n", window_name, cmd],
             capture_output=True, timeout=5,
         )
 
     # Get pane TTY and PID
     result = subprocess.run(
-        ["tmux", "list-panes", "-t", f"{PROXY_SESSION}:{window_name}",
+        [TMUX_BIN, "list-panes", "-t", f"{PROXY_SESSION}:{window_name}",
          "-F", "#{pane_tty} #{pane_pid}"],
         capture_output=True, text=True, timeout=5,
     )
@@ -253,7 +256,7 @@ def is_proxy_pane_alive(session_id):
     if not info:
         return False
     result = subprocess.run(
-        ["tmux", "list-panes", "-t", f"{PROXY_SESSION}:{info['window']}",
+        [TMUX_BIN, "list-panes", "-t", f"{PROXY_SESSION}:{info['window']}",
          "-F", "#{pane_pid}"],
         capture_output=True, text=True, timeout=5,
     )
@@ -265,7 +268,7 @@ def destroy_proxy_pane(session_id):
     info = proxy_panes.pop(session_id, None)
     if info:
         subprocess.run(
-            ["tmux", "kill-window", "-t", f"{PROXY_SESSION}:{info['window']}"],
+            [TMUX_BIN, "kill-window", "-t", f"{PROXY_SESSION}:{info['window']}"],
             capture_output=True, timeout=5,
         )
         print(f"[{time.strftime('%H:%M:%S')}] proxy: destroyed {info['window']}")
@@ -275,7 +278,7 @@ def destroy_all_proxy_panes():
     """Destroy the entire proxy session"""
     proxy_panes.clear()
     subprocess.run(
-        ["tmux", "kill-session", "-t", PROXY_SESSION],
+        [TMUX_BIN, "kill-session", "-t", PROXY_SESSION],
         capture_output=True, timeout=5,
     )
     print(f"[{time.strftime('%H:%M:%S')}] proxy: destroyed all")
@@ -316,10 +319,10 @@ def ensure_proxy_pane(state):
         state["tty"] = existing["tty"]
 
 
-def forward_to_island(state):
+def forward_to_island(state, timeout=5):
     try:
         s = sock.socket(sock.AF_UNIX, sock.SOCK_STREAM)
-        s.settimeout(5)
+        s.settimeout(timeout)
         s.connect(SOCKET_PATH)
         s.sendall(json.dumps(state).encode())
         # For permission requests, wait for response
@@ -367,9 +370,13 @@ async def run_bridge():
             print(f"[{time.strftime('%H:%M:%S')}] wrote: {transcript_path}")
 
         # Manage proxy pane for remote tmux sessions
+        remote_target = state.get("remote_tmux_target")
+        remote_host = state.get("remote_hostname")
         if state.get("status") == "ended":
             destroy_proxy_pane(state.get("session_id", ""))
-        elif state.get("remote_tmux_target"):
+        elif remote_target:
+            ssh_alias = resolve_ssh_host(remote_host) if remote_host else None
+            print(f"[{time.strftime('%H:%M:%S')}] remote: target={remote_target} host={remote_host} ssh={ssh_alias}")
             ensure_proxy_pane(state)
 
         result = forward_to_island(state)
@@ -389,19 +396,14 @@ async def run_bridge():
         transcript_path = get_transcript_path(state)
         state["transcript_path"] = transcript_path
 
-        # Override pid/tty if proxy pane exists for this session
-        session_id = state.get("session_id", "")
-        if session_id in proxy_panes:
-            info = proxy_panes[session_id]
-            state["pid"] = info["pid"]
-            state["tty"] = info["tty"]
-
         session = state.get("session_id", "?")[:8]
         tool = state.get("tool", "?")
         print(f"[{time.strftime('%H:%M:%S')}] permission: {session} {tool}")
 
-        # Forward to Claude Island and wait for approve/deny
-        response = forward_to_island(state)
+        # Forward to Claude Island and wait for approve/deny (in thread to avoid blocking event loop)
+        response = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: forward_to_island(state, timeout=300)
+        )
 
         if isinstance(response, dict):
             reply = json.dumps(response).encode()

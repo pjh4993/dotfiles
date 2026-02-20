@@ -208,15 +208,6 @@ def main():
         "tty": tty,
     }
 
-    # Add remote tmux info if running in SSH session with tmux
-    if is_remote() and os.environ.get("TMUX"):
-        remote_target = get_remote_tmux_target()
-        remote_hostname = get_remote_hostname()
-        if remote_target:
-            state["remote_tmux_target"] = remote_target
-        if remote_hostname:
-            state["remote_hostname"] = remote_hostname
-
     # Map events to status
     if event == "UserPromptSubmit":
         # User just sent a message - Claude is now processing
@@ -323,6 +314,16 @@ def main():
 
     else:
         state["status"] = "unknown"
+
+    # Add remote tmux info for state events (not permissions — those exit above)
+    # Bridge uses these to create proxy tmux panes for remote sessions
+    if is_remote() and os.environ.get("TMUX"):
+        remote_target = get_remote_tmux_target()
+        remote_hostname = get_remote_hostname()
+        if remote_target:
+            state["remote_tmux_target"] = remote_target
+        if remote_hostname:
+            state["remote_hostname"] = remote_hostname
 
     # Send to socket (fire and forget for non-permission events)
     send_event(state)
