@@ -37,11 +37,35 @@ def send_ntfy(state):
     tool = state.get("tool", "")
     message = state.get("message", "")
 
+    # Build tool detail string from tool_input
+    tool_detail = ""
+    tool_input = state.get("tool_input", {})
+    if tool and tool_input:
+        if tool == "Bash":
+            tool_detail = tool_input.get("command", "")
+        elif tool == "Edit" or tool == "Write":
+            tool_detail = tool_input.get("file_path", "")
+        elif tool == "Read":
+            tool_detail = tool_input.get("file_path", "")
+        elif tool == "Glob":
+            tool_detail = tool_input.get("pattern", "")
+        elif tool == "Grep":
+            tool_detail = tool_input.get("pattern", "")
+        elif tool == "Task":
+            tool_detail = tool_input.get("description", "")
+    if tool_detail:
+        tool_detail = f": {tool_detail[:80]}"
+
+    # Use last_assistant_message for Stop/SubagentStop events
+    last_msg = state.get("last_assistant_message", "")
+    if last_msg:
+        last_msg = last_msg[:200]
+
     status_labels = {
         "processing": "Processing...",
-        "running_tool": f"Running: {tool}",
-        "waiting_for_input": "Waiting for input",
-        "waiting_for_approval": f"Permission needed: {tool}",
+        "running_tool": f"Running {tool}{tool_detail}",
+        "waiting_for_input": last_msg or "Waiting for input",
+        "waiting_for_approval": f"Permission needed: {tool}{tool_detail}",
         "notification": message or "Notification",
         "compacting": "Compacting context",
         "ended": "Session ended",
@@ -245,10 +269,12 @@ def main():
 
     elif event == "Stop":
         state["status"] = "waiting_for_input"
+        state["last_assistant_message"] = data.get("last_assistant_message", "")
 
     elif event == "SubagentStop":
         # SubagentStop fires when a subagent completes - usually means back to waiting
         state["status"] = "waiting_for_input"
+        state["last_assistant_message"] = data.get("last_assistant_message", "")
 
     elif event == "SessionStart":
         # New session starts waiting for user input
