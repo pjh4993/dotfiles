@@ -50,6 +50,9 @@ proxy_panes = {}
 # SSH HostName -> alias mapping (cached at startup)
 ssh_hostname_map = {}
 
+# SSH_AUTH_SOCK from user's tmux (cached at startup)
+user_ssh_auth_sock = None
+
 
 def cwd_to_project_dir(cwd):
     """Match Claude Island's ConversationParser.sessionFilePath() exactly"""
@@ -213,10 +216,9 @@ def create_proxy_pane(session_id, ssh_host, remote_target):
     python_bin = shutil.which("python3") or sys.executable
     base_cmd = f"{python_bin} {PROXY_SCRIPT} {session_id} {ssh_host} {remote_target}"
 
-    # Use SSH_AUTH_SOCK from user's tmux (has keys loaded) instead of launchd agent
-    user_auth_sock = get_user_ssh_auth_sock()
-    if user_auth_sock:
-        cmd = f"SSH_AUTH_SOCK={user_auth_sock} {base_cmd}"
+    # Use cached SSH_AUTH_SOCK from user's tmux (has keys loaded)
+    if user_ssh_auth_sock:
+        cmd = f"SSH_AUTH_SOCK={user_ssh_auth_sock} {base_cmd}"
     else:
         cmd = base_cmd
 
@@ -351,6 +353,12 @@ async def run_bridge():
     ssh_hostname_map = parse_ssh_config()
     if ssh_hostname_map:
         print(f"nats-bridge: loaded {len(ssh_hostname_map)} SSH host mappings")
+
+    # Cache SSH_AUTH_SOCK from user's tmux (has keys loaded)
+    global user_ssh_auth_sock
+    user_ssh_auth_sock = get_user_ssh_auth_sock()
+    if user_ssh_auth_sock:
+        print(f"nats-bridge: SSH_AUTH_SOCK={user_ssh_auth_sock}")
 
     # Clean up stale proxy session from previous runs
     cleanup_proxy_session()
