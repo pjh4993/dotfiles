@@ -26,73 +26,17 @@ def is_remote():
 
 
 def send_ntfy(state):
-    """Send event to ntfy.sh as a fallback for remote sessions"""
-    status = state.get("status", "unknown")
-    event = state.get("event", "")
-    cwd = state.get("cwd", "")
-    project = os.path.basename(cwd)
-    hostname = socket.gethostname()
-
-    # Build a human-readable message
-    tool = state.get("tool", "")
-    message = state.get("message", "")
-
-    # Build tool detail string from tool_input
-    tool_detail = ""
-    tool_input = state.get("tool_input", {})
-    if tool and tool_input:
-        if tool == "Bash":
-            tool_detail = tool_input.get("command", "")
-        elif tool == "Edit" or tool == "Write":
-            tool_detail = tool_input.get("file_path", "")
-        elif tool == "Read":
-            tool_detail = tool_input.get("file_path", "")
-        elif tool == "Glob":
-            tool_detail = tool_input.get("pattern", "")
-        elif tool == "Grep":
-            tool_detail = tool_input.get("pattern", "")
-        elif tool == "Task":
-            tool_detail = tool_input.get("description", "")
-    if tool_detail:
-        tool_detail = f": {tool_detail[:80]}"
-
-    # Use last_assistant_message for Stop/SubagentStop events
-    last_msg = state.get("last_assistant_message", "")
-    if last_msg:
-        last_msg = last_msg[:200]
-
-    status_labels = {
-        "processing": "Processing...",
-        "running_tool": f"Running {tool}{tool_detail}",
-        "waiting_for_input": last_msg or "Waiting for input",
-        "waiting_for_approval": f"Permission needed: {tool}{tool_detail}",
-        "notification": message or "Notification",
-        "compacting": "Compacting context",
-        "ended": "Session ended",
-    }
-    body = status_labels.get(status, status)
-
-    # Set priority based on status
-    priority = "default"
-    tags = "robot_face"
-    if status == "waiting_for_input":
-        priority = "high"
-        tags = "white_check_mark"
-    elif status == "waiting_for_approval":
-        priority = "urgent"
-        tags = "warning"
-
-    title = f"[{hostname}] {project}"
-
+    """Send full state JSON to ntfy.sh for the bridge to forward to Claude Island"""
     try:
-        data = body.encode("utf-8")
+        # Send full state as JSON body with "bridge" tag so ntfy-bridge.py
+        # can forward it directly to Claude Island's socket without data loss
+        payload = json.dumps(state).encode("utf-8")
         req = urllib.request.Request(
             f"https://ntfy.sh/{NTFY_TOPIC}",
-            data=data,
+            data=payload,
             headers={
-                "Title": title,
-                "Priority": priority,
-                "Tags": tags,
+                "Title": "claude-island-bridge",
+                "Tags": "bridge",
             },
         )
         urllib.request.urlopen(req, timeout=5)
@@ -171,6 +115,7 @@ def main():
     event = data.get("hook_event_name", "")
     cwd = data.get("cwd", "")
     tool_input = data.get("tool_input", {})
+    transcript_path = data.get("transcript_path", "")
 
     # Get process info
     claude_pid = os.getppid()
@@ -183,6 +128,7 @@ def main():
         "event": event,
         "pid": claude_pid,
         "tty": tty,
+        "transcript_path": transcript_path,
     }
 
     # Map events to status

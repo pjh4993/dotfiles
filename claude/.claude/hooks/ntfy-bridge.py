@@ -5,6 +5,9 @@ ntfy.sh → Claude Island bridge
 Subscribes to a ntfy.sh topic via SSE and forwards events to Claude Island's
 Unix socket. This lets remote SSH sessions appear in Claude Island's UI.
 
+Also writes local transcript files for remote sessions so Claude Island
+can display message content.
+
 Usage:
   ntfy-bridge.py start   # run in foreground
   ntfy-bridge.py daemon  # run as background daemon
@@ -18,11 +21,67 @@ import socket
 import sys
 import time
 import urllib.request
+import uuid
+from datetime import datetime, timezone
 
 NTFY_TOPIC = "pyler-claude-cozhqjel"
 NTFY_URL = f"https://ntfy.sh/{NTFY_TOPIC}/json"
 SOCKET_PATH = "/tmp/claude-island.sock"
 PID_FILE = "/tmp/ntfy-bridge.pid"
+CLAUDE_PROJECTS = os.path.expanduser("~/.claude/projects")
+
+# Track parent UUIDs per session for transcript chaining
+last_uuid = {}
+
+
+def cwd_to_project_dir(cwd):
+    """Convert a remote cwd like /home/pyler/project to Claude's project dir name"""
+    # Claude Code uses the pattern: replace / with - and prepend -
+    # e.g. /Users/pyler/dotfiles -> -Users-pyler-dotfiles
+    return "-" + cwd.strip("/").replace("/", "-")
+
+
+def write_transcript(state):
+    """Write assistant message to a local transcript .jsonl file"""
+    message_text = state.get("last_assistant_message", "")
+    if not message_text:
+        return None
+
+    session_id = state.get("session_id", "unknown")
+    cwd = state.get("cwd", "/tmp")
+
+    # Create project directory
+    project_dir_name = cwd_to_project_dir(cwd)
+    project_dir = os.path.join(CLAUDE_PROJECTS, project_dir_name)
+    os.makedirs(project_dir, exist_ok=True)
+
+    transcript_path = os.path.join(project_dir, f"{session_id}.jsonl")
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    msg_uuid = str(uuid.uuid4())
+    parent = last_uuid.get(session_id)
+
+    entry = {
+        "parentUuid": parent,
+        "isSidechain": False,
+        "userType": "external",
+        "cwd": cwd,
+        "sessionId": session_id,
+        "version": "remote-bridge",
+        "type": "assistant",
+        "message": {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "text", "text": message_text}],
+        },
+        "uuid": msg_uuid,
+        "timestamp": now,
+    }
+
+    with open(transcript_path, "a") as f:
+        f.write(json.dumps(entry) + "\n")
+
+    last_uuid[session_id] = msg_uuid
+    return transcript_path
 
 
 def forward_to_island(state):
@@ -56,45 +115,42 @@ def subscribe():
                     if msg.get("event") != "message":
                         continue
 
-                    body = msg.get("message", "")
-                    title = msg.get("title", "")
                     tags = msg.get("tags", [])
 
-                    # Parse hostname and project from title "[hostname] project"
-                    hostname = ""
-                    project = title
-                    if title.startswith("["):
-                        end = title.find("]")
-                        if end > 0:
-                            hostname = title[1:end]
-                            project = title[end + 1:].strip()
+                    # Only process bridge messages (from claude-island-state.py)
+                    # Skip human-readable messages from notify.sh
+                    if "bridge" not in tags:
+                        continue
 
-                    # Reconstruct state for Claude Island
-                    state = {
-                        "session_id": f"remote-{hostname}",
-                        "cwd": f"ssh://{hostname}/{project}" if hostname else project,
-                        "pid": 0,
-                        "tty": f"remote:{hostname}",
-                        "remote": True,
-                        "hostname": hostname,
-                    }
+                    # Body is the full JSON state — forward directly
+                    body = msg.get("message", "")
+                    try:
+                        state = json.loads(body)
+                    except json.JSONDecodeError:
+                        print(f"[{time.strftime('%H:%M:%S')}] invalid JSON: {body[:100]}")
+                        continue
 
-                    # Map back from ntfy tags/message to status
-                    if "warning" in tags:
-                        state["event"] = "PermissionRequest"
-                        state["status"] = "waiting_for_approval"
-                        state["tool"] = body.replace("Permission needed: ", "")
-                    elif "white_check_mark" in tags:
-                        state["event"] = "Stop"
-                        state["status"] = "waiting_for_input"
-                    else:
-                        state["event"] = "Notification"
-                        state["status"] = "processing"
-                        state["message"] = body
+                    # Ensure transcript_path is set for all remote events
+                    # so Claude Island can find the local transcript file
+                    cwd = state.get("cwd", "/tmp")
+                    sid = state.get("session_id", "unknown")
+                    project_dir = cwd_to_project_dir(cwd)
+                    local_transcript = os.path.join(
+                        CLAUDE_PROJECTS, project_dir, f"{sid}.jsonl"
+                    )
+                    state["transcript_path"] = local_transcript
+
+                    # Write transcript for messages with content
+                    transcript_path = write_transcript(state)
+                    if transcript_path:
+                        print(f"[{time.strftime('%H:%M:%S')}] transcript: {transcript_path}")
 
                     forwarded = forward_to_island(state)
-                    status = "forwarded" if forwarded else "socket unavailable"
-                    print(f"[{time.strftime('%H:%M:%S')}] {status}: {title} — {body}")
+                    label = "forwarded" if forwarded else "socket unavailable"
+                    session = state.get("session_id", "?")
+                    status = state.get("status", "?")
+                    event = state.get("event", "?")
+                    print(f"[{time.strftime('%H:%M:%S')}] {label}: {session} {event}={status}")
 
         except Exception as e:
             print(f"[{time.strftime('%H:%M:%S')}] Connection lost: {e}, reconnecting...")
@@ -125,6 +181,7 @@ def is_running(pid):
 def cmd_start():
     print(f"ntfy-bridge: subscribing to ntfy.sh/{NTFY_TOPIC}")
     print(f"ntfy-bridge: forwarding to {SOCKET_PATH}")
+    print(f"ntfy-bridge: transcripts to {CLAUDE_PROJECTS}")
     write_pid()
     try:
         subscribe()
