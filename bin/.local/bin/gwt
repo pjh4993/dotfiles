@@ -228,7 +228,14 @@ status|st)
 	fi
 	;;
 clean)
-	target="${1:-main}"
+	delete_remote=false
+	target="main"
+	for arg in "$@"; do
+		case "$arg" in
+			--remote) delete_remote=true ;;
+			*) target="$arg" ;;
+		esac
+	done
 	root=$(_gwt_root)
 
 	git fetch origin "$target" 2>/dev/null
@@ -255,8 +262,8 @@ clean)
 			git worktree remove "$root/$wt_branch"
 			_cleanup_empty_parents "$root/$wt_branch" "$root"
 			git branch -D "$wt_branch"
-			# Delete remote branch if it exists
-			if git show-ref --verify --quiet "refs/remotes/origin/$wt_branch" 2>/dev/null; then
+			# Delete remote branch if --remote flag was passed
+			if [[ "$delete_remote" == true ]] && git show-ref --verify --quiet "refs/remotes/origin/$wt_branch" 2>/dev/null; then
 				echo "    Deleting remote branch: origin/$wt_branch"
 				git push origin --delete "$wt_branch" 2>/dev/null || echo "    Failed to delete remote branch (may already be deleted)"
 			fi
@@ -405,7 +412,7 @@ lazygit|lg)
 	echo "  rm <branch>            Remove a worktree"
 	echo "  ls                     List all worktrees"
 	echo "  status|st [target]     Show sync/merge status of worktrees (default: main)"
-	echo "  clean [target]         Remove worktrees merged into target (default: main)"
+	echo "  clean [target] [--remote]  Remove worktrees merged into target (default: main)"
 	echo "  rename|mv <old> <new>  Rename worktree branch and directory"
 	echo "  rebase [target]        Rebase current branch onto target (default: main)"
 	echo "  sync                   Pull remote changes for all worktrees (ff-only)"
