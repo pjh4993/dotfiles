@@ -89,6 +89,40 @@ def nats_request(subject, payload, timeout=300):
     return None
 
 
+def get_remote_tmux_target():
+    """Get tmux pane target on remote machine (only when in tmux)"""
+    if not os.environ.get("TMUX"):
+        return None
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["tmux", "display-message", "-p",
+             "#{session_name}:#{window_index}.#{pane_index}"],
+            capture_output=True, text=True, timeout=2,
+        )
+        target = result.stdout.strip()
+        if target:
+            return target
+    except Exception:
+        pass
+    return None
+
+
+def get_remote_hostname():
+    """Get FQDN of remote machine"""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["hostname", "-f"], capture_output=True, text=True, timeout=2,
+        )
+        hostname = result.stdout.strip()
+        if hostname:
+            return hostname
+    except Exception:
+        pass
+    return None
+
+
 def get_tty():
     """Get the TTY of the Claude process (parent)"""
     import subprocess
@@ -173,6 +207,15 @@ def main():
         "pid": claude_pid,
         "tty": tty,
     }
+
+    # Add remote tmux info if running in SSH session with tmux
+    if is_remote() and os.environ.get("TMUX"):
+        remote_target = get_remote_tmux_target()
+        remote_hostname = get_remote_hostname()
+        if remote_target:
+            state["remote_tmux_target"] = remote_target
+        if remote_hostname:
+            state["remote_hostname"] = remote_hostname
 
     # Map events to status
     if event == "UserPromptSubmit":

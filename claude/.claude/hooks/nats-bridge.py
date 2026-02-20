@@ -18,10 +18,12 @@ Usage:
   nats-bridge.py status  # check if running
 """
 import asyncio
+import glob as glob_mod
 import json
 import os
 import signal
 import socket as sock
+import subprocess
 import sys
 import time
 import uuid as uuid_mod
@@ -34,8 +36,17 @@ SOCKET_PATH = "/tmp/claude-island.sock"
 PID_FILE = "/tmp/nats-bridge.pid"
 CLAUDE_PROJECTS = os.path.expanduser("~/.claude/projects")
 
+PROXY_SESSION = "claude-nats-proxy"
+PROXY_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "nats-proxy-pane.py")
+
 # Track parent UUIDs per session for transcript chaining
 last_uuid = {}
+
+# Proxy pane state: session_id -> {"remote_target": str, "ssh_host": str, "tty": str, "pid": int, "window": str}
+proxy_panes = {}
+
+# SSH HostName -> alias mapping (cached at startup)
+ssh_hostname_map = {}
 
 
 def cwd_to_project_dir(cwd):
@@ -132,6 +143,179 @@ def write_transcript(state, transcript_path):
     return wrote
 
 
+def parse_ssh_config():
+    """Parse ~/.ssh/config to build HostName → SSH alias mapping"""
+    ssh_dir = os.path.expanduser("~/.ssh")
+    mapping = {}
+
+    def parse_file(path):
+        try:
+            with open(path) as f:
+                lines = f.readlines()
+        except FileNotFoundError:
+            return
+
+        current_host = None
+        for line in lines:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+
+            key_val = stripped.split(None, 1)
+            if len(key_val) < 2:
+                continue
+            key, val = key_val[0].lower(), key_val[1]
+
+            if key == "include":
+                pattern = val if os.path.isabs(val) else os.path.join(ssh_dir, val)
+                for included in sorted(glob_mod.glob(pattern)):
+                    parse_file(included)
+            elif key == "host":
+                hosts = val.split()
+                current_host = hosts[0] if hosts and "*" not in hosts[0] and "?" not in hosts[0] else None
+            elif key == "hostname" and current_host:
+                mapping[val] = current_host
+
+    parse_file(os.path.join(ssh_dir, "config"))
+    return mapping
+
+
+def resolve_ssh_host(remote_hostname):
+    """Resolve a remote hostname to an SSH alias from config"""
+    # Exact match
+    if remote_hostname in ssh_hostname_map:
+        return ssh_hostname_map[remote_hostname]
+    # Prefix match (hostname without domain vs FQDN in config)
+    for config_hostname, alias in ssh_hostname_map.items():
+        if config_hostname.startswith(remote_hostname + ".") or remote_hostname.startswith(config_hostname + "."):
+            return alias
+    return None
+
+
+def cleanup_proxy_session():
+    """Kill stale proxy session from previous runs"""
+    subprocess.run(
+        ["tmux", "kill-session", "-t", PROXY_SESSION],
+        capture_output=True, timeout=5,
+    )
+    proxy_panes.clear()
+
+
+def create_proxy_pane(session_id, ssh_host, remote_target):
+    """Create a proxy tmux pane for a remote session, return (tty, pid) or (None, None)"""
+    window_name = session_id[:12]
+
+    # Check if proxy session exists
+    result = subprocess.run(
+        ["tmux", "has-session", "-t", PROXY_SESSION],
+        capture_output=True, timeout=5,
+    )
+    cmd = f"python3 {PROXY_SCRIPT} {session_id} {ssh_host} {remote_target}"
+
+    if result.returncode != 0:
+        # Create session with first window
+        subprocess.run(
+            ["tmux", "new-session", "-d", "-s", PROXY_SESSION, "-n", window_name, cmd],
+            capture_output=True, timeout=5,
+        )
+    else:
+        # Add window to existing session
+        subprocess.run(
+            ["tmux", "new-window", "-d", "-t", PROXY_SESSION, "-n", window_name, cmd],
+            capture_output=True, timeout=5,
+        )
+
+    # Get pane TTY and PID
+    result = subprocess.run(
+        ["tmux", "list-panes", "-t", f"{PROXY_SESSION}:{window_name}",
+         "-F", "#{pane_tty} #{pane_pid}"],
+        capture_output=True, text=True, timeout=5,
+    )
+    if result.returncode == 0 and result.stdout.strip():
+        parts = result.stdout.strip().split()
+        tty, pid = parts[0], int(parts[1])
+        proxy_panes[session_id] = {
+            "remote_target": remote_target,
+            "ssh_host": ssh_host,
+            "tty": tty,
+            "pid": pid,
+            "window": window_name,
+        }
+        print(f"[{time.strftime('%H:%M:%S')}] proxy: created {window_name} tty={tty} pid={pid}")
+        return tty, pid
+
+    return None, None
+
+
+def is_proxy_pane_alive(session_id):
+    """Check if proxy pane is still alive"""
+    info = proxy_panes.get(session_id)
+    if not info:
+        return False
+    result = subprocess.run(
+        ["tmux", "list-panes", "-t", f"{PROXY_SESSION}:{info['window']}",
+         "-F", "#{pane_pid}"],
+        capture_output=True, text=True, timeout=5,
+    )
+    return result.returncode == 0 and result.stdout.strip() != ""
+
+
+def destroy_proxy_pane(session_id):
+    """Destroy proxy pane for a session"""
+    info = proxy_panes.pop(session_id, None)
+    if info:
+        subprocess.run(
+            ["tmux", "kill-window", "-t", f"{PROXY_SESSION}:{info['window']}"],
+            capture_output=True, timeout=5,
+        )
+        print(f"[{time.strftime('%H:%M:%S')}] proxy: destroyed {info['window']}")
+
+
+def destroy_all_proxy_panes():
+    """Destroy the entire proxy session"""
+    proxy_panes.clear()
+    subprocess.run(
+        ["tmux", "kill-session", "-t", PROXY_SESSION],
+        capture_output=True, timeout=5,
+    )
+    print(f"[{time.strftime('%H:%M:%S')}] proxy: destroyed all")
+
+
+def ensure_proxy_pane(state):
+    """Ensure proxy pane exists for a remote session, override pid/tty in state"""
+    remote_target = state.get("remote_tmux_target")
+    remote_hostname = state.get("remote_hostname")
+    session_id = state.get("session_id")
+
+    if not remote_target or not session_id:
+        return
+
+    # Resolve SSH host
+    ssh_host = resolve_ssh_host(remote_hostname) if remote_hostname else None
+    if not ssh_host:
+        return
+
+    existing = proxy_panes.get(session_id)
+
+    # If target changed, destroy and recreate
+    if existing and existing["remote_target"] != remote_target:
+        print(f"[{time.strftime('%H:%M:%S')}] proxy: target changed for {session_id[:8]}")
+        destroy_proxy_pane(session_id)
+        existing = None
+
+    # Create if not exists or dead
+    if not existing or not is_proxy_pane_alive(session_id):
+        if existing:
+            proxy_panes.pop(session_id, None)
+        tty, pid = create_proxy_pane(session_id, ssh_host, remote_target)
+        if tty and pid:
+            state["pid"] = pid
+            state["tty"] = tty
+    else:
+        state["pid"] = existing["pid"]
+        state["tty"] = existing["tty"]
+
+
 def forward_to_island(state):
     try:
         s = sock.socket(sock.AF_UNIX, sock.SOCK_STREAM)
@@ -154,6 +338,15 @@ def forward_to_island(state):
 async def run_bridge():
     import nats
 
+    # Parse SSH config for hostname → alias resolution
+    global ssh_hostname_map
+    ssh_hostname_map = parse_ssh_config()
+    if ssh_hostname_map:
+        print(f"nats-bridge: loaded {len(ssh_hostname_map)} SSH host mappings")
+
+    # Clean up stale proxy session from previous runs
+    cleanup_proxy_session()
+
     print(f"nats-bridge: connecting to {NATS_URL}")
     nc = await nats.connect(NATS_URL)
     print(f"nats-bridge: subscribed to {SUBJECT_STATE}, {SUBJECT_PERMISSION}")
@@ -173,6 +366,12 @@ async def run_bridge():
         if wrote:
             print(f"[{time.strftime('%H:%M:%S')}] wrote: {transcript_path}")
 
+        # Manage proxy pane for remote tmux sessions
+        if state.get("status") == "ended":
+            destroy_proxy_pane(state.get("session_id", ""))
+        elif state.get("remote_tmux_target"):
+            ensure_proxy_pane(state)
+
         result = forward_to_island(state)
         label = "forwarded" if result else "socket unavailable"
         session = state.get("session_id", "?")[:8]
@@ -189,6 +388,13 @@ async def run_bridge():
 
         transcript_path = get_transcript_path(state)
         state["transcript_path"] = transcript_path
+
+        # Override pid/tty if proxy pane exists for this session
+        session_id = state.get("session_id", "")
+        if session_id in proxy_panes:
+            info = proxy_panes[session_id]
+            state["pid"] = info["pid"]
+            state["tty"] = info["tty"]
 
         session = state.get("session_id", "?")[:8]
         tool = state.get("tool", "?")
@@ -216,6 +422,7 @@ async def run_bridge():
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, stop.set)
     await stop.wait()
+    destroy_all_proxy_panes()
     await nc.close()
     print("\nnats-bridge: stopped")
 
