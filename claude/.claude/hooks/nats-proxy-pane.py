@@ -11,6 +11,18 @@ import subprocess
 import sys
 
 
+def ensure_ssh_agent_keys():
+    """Load SSH keys from macOS Keychain if agent has none"""
+    result = subprocess.run(
+        ["ssh-add", "-l"], capture_output=True, text=True, timeout=5,
+    )
+    if "no identities" in result.stderr or result.returncode != 0:
+        # Load keys previously stored in Keychain (non-interactive)
+        subprocess.run(
+            ["ssh-add", "--apple-load-keychain"], capture_output=True, timeout=5,
+        )
+
+
 def main():
     if len(sys.argv) != 4:
         print(f"Usage: {sys.argv[0]} <session_id> <ssh_host> <remote_tmux_target>")
@@ -19,6 +31,8 @@ def main():
     session_id = sys.argv[1]
     ssh_host = sys.argv[2]
     remote_target = sys.argv[3]
+
+    ensure_ssh_agent_keys()
 
     print(f"proxy-pane [{session_id[:8]}] ssh={ssh_host} target={remote_target}")
     print("Waiting for input...")

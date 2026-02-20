@@ -93,12 +93,17 @@ def get_remote_tmux_target():
     """Get tmux pane target on remote machine (only when in tmux)"""
     if not os.environ.get("TMUX"):
         return None
+    # Use TMUX_PANE to get THIS pane's target, not the active pane
+    tmux_pane = os.environ.get("TMUX_PANE")
     import subprocess
     try:
+        cmd = ["tmux", "display-message", "-p",
+               "#{session_name}:#{window_index}.#{pane_index}"]
+        if tmux_pane:
+            cmd = ["tmux", "display-message", "-t", tmux_pane, "-p",
+                   "#{session_name}:#{window_index}.#{pane_index}"]
         result = subprocess.run(
-            ["tmux", "display-message", "-p",
-             "#{session_name}:#{window_index}.#{pane_index}"],
-            capture_output=True, text=True, timeout=2,
+            cmd, capture_output=True, text=True, timeout=2,
         )
         target = result.stdout.strip()
         if target:

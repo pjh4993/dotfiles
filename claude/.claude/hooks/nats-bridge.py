@@ -188,6 +188,19 @@ def cleanup_proxy_session():
     proxy_panes.clear()
 
 
+def get_user_ssh_auth_sock():
+    """Get SSH_AUTH_SOCK from the user's main tmux server (has keys loaded)"""
+    result = subprocess.run(
+        [TMUX_BIN, "show-environment", "SSH_AUTH_SOCK"],
+        capture_output=True, text=True, timeout=5,
+    )
+    if result.returncode == 0:
+        line = result.stdout.strip()
+        if "=" in line and not line.startswith("-"):
+            return line.split("=", 1)[1]
+    return None
+
+
 def create_proxy_pane(session_id, ssh_host, remote_target):
     """Create a proxy tmux pane for a remote session, return (tty, pid) or (None, None)"""
     window_name = session_id[:12]
@@ -198,7 +211,14 @@ def create_proxy_pane(session_id, ssh_host, remote_target):
         capture_output=True, timeout=5,
     )
     python_bin = shutil.which("python3") or sys.executable
-    cmd = f"{python_bin} {PROXY_SCRIPT} {session_id} {ssh_host} {remote_target}"
+    base_cmd = f"{python_bin} {PROXY_SCRIPT} {session_id} {ssh_host} {remote_target}"
+
+    # Use SSH_AUTH_SOCK from user's tmux (has keys loaded) instead of launchd agent
+    user_auth_sock = get_user_ssh_auth_sock()
+    if user_auth_sock:
+        cmd = f"SSH_AUTH_SOCK={user_auth_sock} {base_cmd}"
+    else:
+        cmd = base_cmd
 
     if result.returncode != 0:
         # Create session with first window
