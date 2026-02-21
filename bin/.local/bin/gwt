@@ -56,6 +56,13 @@ clone)
 		cp "$gwt_claude_md" CLAUDE.md
 		echo "==> Copied CLAUDE.md template"
 	fi
+	# Copy Claude settings.local.json for project-level permissions
+	claude_local="$HOME/.claude/settings.local.json"
+	if [[ -f "$claude_local" ]]; then
+		mkdir -p .claude
+		cp "$claude_local" .claude/settings.local.json
+		echo "==> Copied .claude/settings.local.json"
+	fi
 	echo "==> Ready: cd $dir/$default_branch"
 	;;
 add)
