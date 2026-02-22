@@ -48,14 +48,6 @@ if is_remote; then
     -H "Tags: $TAGS" \
     -d "[$HOSTNAME] $PROJECT — $SUMMARY" \
     "ntfy.sh/$NTFY_TOPIC" >/dev/null 2>&1
-else
-  # Local: terminal-notifier
-  terminal-notifier \
-    -title "$TITLE" \
-    -subtitle "$PROJECT — $CWD" \
-    -message "$SUMMARY" \
-    -activate org.alacritty \
-    -group "claude-$PROJECT"
 fi
 
 exit 0
