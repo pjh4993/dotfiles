@@ -49,8 +49,7 @@ if is_remote; then
     -d "[$HOSTNAME] $PROJECT — $SUMMARY" \
     "ntfy.sh/$NTFY_TOPIC" >/dev/null 2>&1
 else
-  # Local: ring bell + terminal-notifier
-  printf '\a'
+  # Local: terminal-notifier
   terminal-notifier \
     -title "$TITLE" \
     -subtitle "$PROJECT — $CWD" \
