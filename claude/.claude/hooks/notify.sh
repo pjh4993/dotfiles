@@ -55,8 +55,7 @@ else
     -subtitle "$PROJECT — $CWD" \
     -message "$SUMMARY" \
     -activate org.alacritty \
-    -group "claude-$PROJECT" \
-    -sound default
+    -group "claude-$PROJECT"
 fi
 
 exit 0
