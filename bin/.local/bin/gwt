@@ -21,6 +21,13 @@ _is_bare_root() {
 	[[ -f .git ]] && grep -q "gitdir: ./.bare" .git 2>/dev/null
 }
 
+# Detect the default branch (origin/HEAD -> main, develop, etc.)
+_default_branch() {
+	local branch
+	branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')
+	echo "${branch:-main}"
+}
+
 # Remove empty parent directories up to the project root
 _cleanup_empty_parents() {
 	local dir="$1" root="$2"
@@ -95,7 +102,7 @@ ls)
 	git worktree list
 	;;
 status|st)
-	target="${1:-main}"
+	target="${1:-$(_default_branch)}"
 	git_common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
 	has_gh=false
 	command -v gh &>/dev/null && has_gh=true
@@ -242,7 +249,7 @@ status|st)
 	;;
 clean)
 	delete_remote=false
-	target="main"
+	target="$(_default_branch)"
 	for arg in "$@"; do
 		case "$arg" in
 			--remote) delete_remote=true ;;
@@ -313,7 +320,7 @@ rename|mv)
 	echo "==> cd $new_path"
 	;;
 rebase)
-	target="${1:-main}"
+	target="${1:-$(_default_branch)}"
 	root=$(_gwt_root)
 	branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
 
@@ -424,10 +431,10 @@ lazygit|lg)
 	echo "  add <branch> [base]    Add worktree (creates branch if new)"
 	echo "  rm <branch>            Remove a worktree"
 	echo "  ls                     List all worktrees"
-	echo "  status|st [target]     Show sync/merge status of worktrees (default: main)"
-	echo "  clean [target] [--remote]  Remove worktrees merged into target (default: main)"
+	echo "  status|st [target]     Show sync/merge status of worktrees (default: auto-detect)"
+	echo "  clean [target] [--remote]  Remove worktrees merged into target (default: auto-detect)"
 	echo "  rename|mv <old> <new>  Rename worktree branch and directory"
-	echo "  rebase [target]        Rebase current branch onto target (default: main)"
+	echo "  rebase [target]        Rebase current branch onto target (default: auto-detect)"
 	echo "  sync                   Pull remote changes for all worktrees (ff-only)"
 	echo "  lazygit|lg             Launch lazygit (auto-enters worktree if at bare root)"
 	;;
