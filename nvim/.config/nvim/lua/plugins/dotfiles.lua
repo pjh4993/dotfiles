@@ -10,7 +10,7 @@ return {
           git = {
             paging = {
               colorArg = "always",
-              pager = "delta --dark --paging=never --side-by-side --width={{columnWidth}}",
+              pager = "bash -c 'delta --dark --paging=never --side-by-side --width=$(({{columnWidth}} * 2))'",
             },
           },
         },
