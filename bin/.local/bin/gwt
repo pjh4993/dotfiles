@@ -227,23 +227,35 @@ status|st)
 	done < <(git worktree list)
 	echo ""
 
-	# Remote branches not checked out as worktrees
+	# Remote branches not checked out as worktrees (10 most recent)
 	worktree_branches=$(git worktree list | sed -n 's/.*\[\(.*\)\].*/\1/p')
-	has_remote_only=false
-	while IFS= read -r ref; do
+	remote_only=()
+	while IFS= read -r line; do
+		ref="${line%% *}"
 		branch="${ref#refs/remotes/origin/}"
 		[[ "$branch" == "HEAD" ]] && continue
 		if ! echo "$worktree_branches" | grep -qx "$branch"; then
-			if [[ "$has_remote_only" == false ]]; then
-				echo "Remote branches without worktree:"
-				has_remote_only=true
-			fi
-			remote_commit=$(git rev-parse --short "$ref" 2>/dev/null)
-			printf "  %-30s %s\n" "$branch" "$remote_commit"
+			remote_only+=("$line")
 		fi
-	done < <(git for-each-ref --format='%(refname)' refs/remotes/origin/)
+	done < <(git for-each-ref --sort=-committerdate --format='%(refname) %(objectname:short)' refs/remotes/origin/)
 
-	if [[ "$has_remote_only" == false ]]; then
+	if (( ${#remote_only[@]} > 0 )); then
+		echo "Remote branches without worktree:"
+		limit=10
+		shown=0
+		for entry in "${remote_only[@]}"; do
+			(( shown >= limit )) && break
+			ref="${entry%% *}"
+			commit="${entry##* }"
+			branch="${ref#refs/remotes/origin/}"
+			printf "  %-30s %s\n" "$branch" "$commit"
+			shown=$((shown + 1))
+		done
+		rest=$(( ${#remote_only[@]} - shown ))
+		if (( rest > 0 )); then
+			echo "  ... and $rest more"
+		fi
+	else
 		echo "All remote branches have worktrees."
 	fi
 	;;
