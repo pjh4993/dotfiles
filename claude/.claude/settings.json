@@ -14,7 +14,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/pyler/.local/bin/uv run ~/.claude/hooks/claude-island-state.py"
+            "command": "uv run ~/.claude/hooks/claude-island-state.py"
           }
         ]
       }
@@ -25,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/pyler/.local/bin/uv run ~/.claude/hooks/claude-island-state.py",
+            "command": "uv run ~/.claude/hooks/claude-island-state.py",
             "timeout": 86400
           }
         ]
@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/pyler/.local/bin/uv run ~/.claude/hooks/claude-island-state.py"
+            "command": "uv run ~/.claude/hooks/claude-island-state.py"
           }
         ]
       }
@@ -48,7 +48,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/pyler/.local/bin/uv run ~/.claude/hooks/claude-island-state.py"
+            "command": "uv run ~/.claude/hooks/claude-island-state.py"
           }
         ]
       },
@@ -57,7 +57,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/pyler/.local/bin/uv run ~/.claude/hooks/claude-island-state.py"
+            "command": "uv run ~/.claude/hooks/claude-island-state.py"
           }
         ]
       }
@@ -68,7 +68,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/pyler/.local/bin/uv run ~/.claude/hooks/claude-island-state.py"
+            "command": "uv run ~/.claude/hooks/claude-island-state.py"
           }
         ]
       }
@@ -78,7 +78,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/pyler/.local/bin/uv run ~/.claude/hooks/claude-island-state.py"
+            "command": "uv run ~/.claude/hooks/claude-island-state.py"
           }
         ]
       }
@@ -88,7 +88,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/pyler/.local/bin/uv run ~/.claude/hooks/claude-island-state.py"
+            "command": "uv run ~/.claude/hooks/claude-island-state.py"
           }
         ]
       }
@@ -106,7 +106,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/pyler/.local/bin/uv run ~/.claude/hooks/claude-island-state.py"
+            "command": "uv run ~/.claude/hooks/claude-island-state.py"
           }
         ]
       }
@@ -116,7 +116,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/pyler/.local/bin/uv run ~/.claude/hooks/claude-island-state.py"
+            "command": "uv run ~/.claude/hooks/claude-island-state.py"
           }
         ]
       }
@@ -126,7 +126,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/pyler/.local/bin/uv run ~/.claude/hooks/claude-island-state.py"
+            "command": "uv run ~/.claude/hooks/claude-island-state.py"
           }
         ]
       }

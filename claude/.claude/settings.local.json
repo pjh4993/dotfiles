@@ -8,7 +8,9 @@
       "Bash(git push:*)",
       "WebFetch",
       "Fetch",
-      "WebSearch"
+      "WebSearch",
+      "Bash(aws:*)",
+      "Bash(AWS_PROFILE=\"pyler-mantis\" aws s3:*)"
     ]
   }
 }
