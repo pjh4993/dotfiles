@@ -37,4 +37,25 @@ return {
       },
     },
   },
+  -- YAML path navigation and statusline display
+  {
+    "cuducos/yaml.nvim",
+    ft = { "yaml" },
+    dependencies = {
+      "nvim-treesitter/nvim-treesitter",
+    },
+    config = function()
+      vim.api.nvim_create_autocmd("BufWinEnter", {
+        pattern = { "*.yaml", "*.yml" },
+        callback = function()
+          vim.defer_fn(function()
+            if vim.bo.filetype == "yaml" then
+              vim.opt_local.foldmethod = "indent"
+              vim.opt_local.foldlevel = 1
+            end
+          end, 50)
+        end,
+      })
+    end,
+  },
 }
