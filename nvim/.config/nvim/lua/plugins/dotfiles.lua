@@ -32,6 +32,7 @@ return {
           explorer = {
             hidden = true,
             ignored = true,
+            exclude = { "__pycache__" },
           },
         },
       },
