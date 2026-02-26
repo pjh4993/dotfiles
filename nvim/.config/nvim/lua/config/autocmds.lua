@@ -13,6 +13,18 @@ vim.api.nvim_create_autocmd("VimResized", {
   command = "wincmd =",
 })
 
+-- Clear PDF buffer content (show hint instead of binary garbage)
+vim.api.nvim_create_autocmd("BufReadPost", {
+  group = vim.api.nvim_create_augroup("dotfiles_pdf", { clear = true }),
+  pattern = "*.pdf",
+  callback = function()
+    vim.bo.modifiable = true
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, { "Press <leader>cp to open PDF in browser" })
+    vim.bo.modifiable = false
+    vim.bo.modified = false
+  end,
+})
+
 -- Auto-reload files changed outside nvim (e.g. by Claude Code, git)
 vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter", "CursorHold" }, {
   group = vim.api.nvim_create_augroup("dotfiles_autoreload", { clear = true }),
