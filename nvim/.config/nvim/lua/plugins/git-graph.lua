@@ -1,17 +1,11 @@
 return {
+  -- Disable gitgraph.nvim in favor of vim-flog
+  { "isakbm/gitgraph.nvim", enabled = false },
+
   {
-    "isakbm/gitgraph.nvim",
-    dependencies = { "sindrets/diffview.nvim" },
-    opts = {
-      hooks = {
-        on_select_commit = function(commit)
-          vim.cmd(":DiffviewOpen " .. commit.hash .. "^!")
-        end,
-        on_select_range_commit = function(from, to)
-          vim.cmd(":DiffviewOpen " .. from.hash .. "~1.." .. to.hash)
-        end,
-      },
-    },
+    "rbong/vim-flog",
+    dependencies = { "tpope/vim-fugitive" },
+    cmd = { "Flog", "Flogsplit" },
     keys = {
       {
         "<leader>gl",
@@ -25,9 +19,9 @@ return {
               vim.cmd("cd " .. vim.fn.fnameescape(wt))
             end
           end
-          require("gitgraph").draw({}, { all = true, max_count = 5000 })
+          vim.cmd("Flog -all")
         end,
-        desc = "Git Graph",
+        desc = "Git Graph (Flog)",
       },
     },
   },
