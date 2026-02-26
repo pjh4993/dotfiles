@@ -22,6 +22,8 @@ brew "git-delta"
 brew "lazygit"
 brew "lazysql"
 brew "tmuxinator"
+brew "yazi"
+brew "rclone"
 
 # Database
 brew "duckdb"

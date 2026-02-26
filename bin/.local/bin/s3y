@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# s3y — Mount an S3 remote via rclone and browse with yazi
+#
+# Usage:
+#   s3y                    # Browse all configured remotes
+#   s3y myremote:          # Browse root of a remote
+#   s3y myremote:bucket    # Browse a specific bucket/path
+#
+# Prerequisites:
+#   - rclone (brew install rclone)
+#   - yazi   (brew install yazi)
+#   - Configure S3 remotes with: rclone config
+
+set -euo pipefail
+
+die() { echo "error: $*" >&2; exit 1; }
+
+command -v rclone &>/dev/null || die "rclone not found. Install with: brew install rclone"
+command -v yazi &>/dev/null   || die "yazi not found. Install with: brew install yazi"
+
+# If no argument, list remotes and let user pick with fzf
+if [[ $# -eq 0 ]]; then
+  remotes=$(rclone listremotes 2>/dev/null)
+  if [[ -z "$remotes" ]]; then
+    echo "No rclone remotes configured."
+    echo "Run 'rclone config' to set up an S3 remote first."
+    exit 1
+  fi
+
+  if command -v fzf &>/dev/null; then
+    remote=$(echo "$remotes" | fzf --prompt="Select remote: " --height=~10) || exit 0
+  else
+    echo "Available remotes:"
+    echo "$remotes"
+    echo
+    read -rp "Enter remote (e.g. myremote:): " remote
+    [[ -z "$remote" ]] && exit 0
+  fi
+else
+  remote="$1"
+fi
+
+# Ensure remote ends with : if it's just a name
+[[ "$remote" != *:* ]] && remote="${remote}:"
+
+mount_dir=$(mktemp -d "${TMPDIR:-/tmp}/s3y.XXXXXX")
+echo "==> Mounting $remote at $mount_dir"
+
+cleanup() {
+  echo "==> Unmounting $mount_dir"
+  umount "$mount_dir" 2>/dev/null || true
+  # Give NFS a moment to release
+  sleep 0.5
+  rmdir "$mount_dir" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+rclone nfsmount "$remote" "$mount_dir" \
+  --daemon \
+  --daemon-wait 10s \
+  --vfs-cache-mode full \
+  --vfs-cache-max-age 1h \
+  --dir-cache-time 5m \
+  --read-only
+
+echo "==> Mounted. Opening yazi..."
+yazi "$mount_dir"
