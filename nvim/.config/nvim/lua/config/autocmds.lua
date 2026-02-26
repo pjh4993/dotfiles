@@ -25,6 +25,42 @@ vim.api.nvim_create_autocmd("BufReadPost", {
   end,
 })
 
+-- Folding for octo.nvim PR/issue buffers (collapses CodeRabbit bot sections)
+-- Level 1: _start/_end section markers + auto-generated comment wrappers
+-- Level 2: <details> blocks nested inside sections
+_G.octo_foldexpr = function()
+  local line = vim.fn.getline(vim.v.lnum)
+  -- CodeRabbit _start markers: <!-- walkthrough_start -->, <!-- tips_start -->, etc.
+  if line:match("<!%-%-.+_start%s*%-%->") then
+    return ">1"
+  -- CodeRabbit _end markers: <!-- walkthrough_end -->, <!-- tips_end -->, etc.
+  elseif line:match("<!%-%-.+_end%s*%-%->") then
+    return "<1"
+  -- Top-level auto-generated comment wrappers
+  elseif line:match("^<!%-%-%s*This is an auto%-generated") then
+    return ">1"
+  elseif line:match("^<!%-%-%s*end of auto%-generated") then
+    return "<1"
+  -- <details> blocks (nested inside sections)
+  elseif line:match("^<details") then
+    return ">2"
+  elseif line:match("^</details>") then
+    return "<2"
+  end
+  return "="
+end
+
+vim.api.nvim_create_autocmd("FileType", {
+  group = vim.api.nvim_create_augroup("dotfiles_octo_fold", { clear = true }),
+  pattern = "octo",
+  callback = function()
+    vim.opt_local.foldmethod = "expr"
+    vim.opt_local.foldexpr = "v:lua.octo_foldexpr()"
+    vim.opt_local.foldlevel = 0  -- start with all bot sections collapsed
+    vim.opt_local.foldminlines = 2
+  end,
+})
+
 -- Auto-reload files changed outside nvim (e.g. by Claude Code, git)
 vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter", "CursorHold" }, {
   group = vim.api.nvim_create_augroup("dotfiles_autoreload", { clear = true }),
