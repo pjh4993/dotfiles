@@ -32,7 +32,7 @@ return {
           explorer = {
             hidden = true,
             ignored = true,
-            exclude = { "__pycache__" },
+            exclude = { "__pycache__", ".pytest_cache" },
           },
         },
       },
