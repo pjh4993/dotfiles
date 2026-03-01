@@ -1,138 +1,138 @@
 {
-  "hooks": {
-    "Notification": [
+  "enabledPlugins" : {
+    "frontend-design@claude-plugins-official" : true
+  },
+  "hooks" : {
+    "Notification" : [
       {
-        "hooks": [
+        "hooks" : [
           {
-            "type": "command",
-            "command": "~/.claude/hooks/notify.sh"
+            "command" : "~\/.claude\/hooks\/notify.sh",
+            "type" : "command"
           }
         ]
       },
       {
-        "matcher": "*",
-        "hooks": [
+        "hooks" : [
           {
-            "type": "command",
-            "command": "uv run ~/.claude/hooks/claude-island-state.py"
+            "command" : "\/Users\/pyler\/.local\/bin\/uv run ~\/.claude\/hooks\/claude-island-state.py",
+            "type" : "command"
+          }
+        ],
+        "matcher" : "*"
+      }
+    ],
+    "PermissionRequest" : [
+      {
+        "hooks" : [
+          {
+            "command" : "\/Users\/pyler\/.local\/bin\/uv run ~\/.claude\/hooks\/claude-island-state.py",
+            "timeout" : 86400,
+            "type" : "command"
+          }
+        ],
+        "matcher" : "*"
+      }
+    ],
+    "PostToolUse" : [
+      {
+        "hooks" : [
+          {
+            "command" : "\/Users\/pyler\/.local\/bin\/uv run ~\/.claude\/hooks\/claude-island-state.py",
+            "type" : "command"
+          }
+        ],
+        "matcher" : "*"
+      }
+    ],
+    "PreCompact" : [
+      {
+        "hooks" : [
+          {
+            "command" : "\/Users\/pyler\/.local\/bin\/uv run ~\/.claude\/hooks\/claude-island-state.py",
+            "type" : "command"
+          }
+        ],
+        "matcher" : "auto"
+      },
+      {
+        "hooks" : [
+          {
+            "command" : "\/Users\/pyler\/.local\/bin\/uv run ~\/.claude\/hooks\/claude-island-state.py",
+            "type" : "command"
+          }
+        ],
+        "matcher" : "manual"
+      }
+    ],
+    "PreToolUse" : [
+      {
+        "hooks" : [
+          {
+            "command" : "\/Users\/pyler\/.local\/bin\/uv run ~\/.claude\/hooks\/claude-island-state.py",
+            "type" : "command"
+          }
+        ],
+        "matcher" : "*"
+      }
+    ],
+    "SessionEnd" : [
+      {
+        "hooks" : [
+          {
+            "command" : "\/Users\/pyler\/.local\/bin\/uv run ~\/.claude\/hooks\/claude-island-state.py",
+            "type" : "command"
           }
         ]
       }
     ],
-    "PermissionRequest": [
+    "SessionStart" : [
       {
-        "matcher": "*",
-        "hooks": [
+        "hooks" : [
           {
-            "type": "command",
-            "command": "uv run ~/.claude/hooks/claude-island-state.py",
-            "timeout": 86400
+            "command" : "\/Users\/pyler\/.local\/bin\/uv run ~\/.claude\/hooks\/claude-island-state.py",
+            "type" : "command"
           }
         ]
       }
     ],
-    "PostToolUse": [
+    "Stop" : [
       {
-        "matcher": "*",
-        "hooks": [
+        "hooks" : [
           {
-            "type": "command",
-            "command": "uv run ~/.claude/hooks/claude-island-state.py"
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "matcher": "auto",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "uv run ~/.claude/hooks/claude-island-state.py"
+            "command" : "~\/.claude\/hooks\/notify.sh",
+            "type" : "command"
           }
         ]
       },
       {
-        "matcher": "manual",
-        "hooks": [
+        "hooks" : [
           {
-            "type": "command",
-            "command": "uv run ~/.claude/hooks/claude-island-state.py"
+            "command" : "\/Users\/pyler\/.local\/bin\/uv run ~\/.claude\/hooks\/claude-island-state.py",
+            "type" : "command"
           }
         ]
       }
     ],
-    "PreToolUse": [
+    "SubagentStop" : [
       {
-        "matcher": "*",
-        "hooks": [
+        "hooks" : [
           {
-            "type": "command",
-            "command": "uv run ~/.claude/hooks/claude-island-state.py"
+            "command" : "\/Users\/pyler\/.local\/bin\/uv run ~\/.claude\/hooks\/claude-island-state.py",
+            "type" : "command"
           }
         ]
       }
     ],
-    "SessionEnd": [
+    "UserPromptSubmit" : [
       {
-        "hooks": [
+        "hooks" : [
           {
-            "type": "command",
-            "command": "uv run ~/.claude/hooks/claude-island-state.py"
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "uv run ~/.claude/hooks/claude-island-state.py"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/notify.sh"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "uv run ~/.claude/hooks/claude-island-state.py"
-          }
-        ]
-      }
-    ],
-    "SubagentStop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "uv run ~/.claude/hooks/claude-island-state.py"
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "uv run ~/.claude/hooks/claude-island-state.py"
+            "command" : "\/Users\/pyler\/.local\/bin\/uv run ~\/.claude\/hooks\/claude-island-state.py",
+            "type" : "command"
           }
         ]
       }
     ]
-  },
-  "enabledPlugins": {
-    "frontend-design@claude-plugins-official": true
   }
 }

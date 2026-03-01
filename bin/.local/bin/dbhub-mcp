@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# dbhub-mcp — Launch the Bytebase DBHub MCP server for PostgreSQL
+#
+# Requires DBHUB_DSN to be set, e.g. in ~/.local/hooks/secrets.zsh:
+#   export DBHUB_DSN="postgresql://user:pass@host:5432/dbname"
+
+set -euo pipefail
+
+: "${DBHUB_DSN:?DBHUB_DSN is not set. Add it to ~/.local/hooks/secrets.zsh}"
+
+exec npx -y @bytebase/dbhub --dsn "$DBHUB_DSN"
