@@ -1,0 +1,23 @@
+namespace: dev
+
+postgres:
+  image: postgres:17
+  user: dev
+  password: dev
+  db: mydb
+  storage: 2Gi
+  port: 5432
+
+rabbitmq:
+  image: rabbitmq:4-management
+  user: dev
+  password: dev
+  storage: 1Gi
+  ports:
+    amqp: 5672
+    management: 15672
+
+redis:
+  image: redis:7-alpine
+  storage: 1Gi
+  port: 6379

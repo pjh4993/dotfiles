@@ -1,0 +1,5 @@
+apiVersion: v2
+name: dev-infra
+description: Local dev infrastructure — PostgreSQL, RabbitMQ, Redis
+type: application
+version: 0.1.0
