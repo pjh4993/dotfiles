@@ -2,6 +2,22 @@
 
 PostgreSQL, RabbitMQ, and Redis packaged as a Helm chart (`dev-infra`) for Docker Desktop Kubernetes.
 
+## Startup (auto-deploy on login)
+
+A launchd agent is included to deploy the chart automatically when you log in.
+
+```bash
+# Install (one-time)
+stow -t ~ launchagents
+launchctl load ~/Library/LaunchAgents/com.pyler.dev-infra.plist
+
+# Logs
+tail -f ~/Library/Logs/dev-infra.log
+
+# Stop / disable
+launchctl unload ~/Library/LaunchAgents/com.pyler.dev-infra.plist
+```
+
 ## Prerequisites
 
 - Enable Kubernetes in Docker Desktop → Settings → Kubernetes → Enable Kubernetes

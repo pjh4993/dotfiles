@@ -10,5 +10,5 @@ until kubectl cluster-info &>/dev/null 2>&1; do
 done
 
 echo "[dev-infra] Kubernetes ready. Deploying..."
-helm upgrade --install dev-infra "$HOME/dotfiles/k8s"
+helm upgrade --install dev-infra "$HOME/dotfiles/k8s" --namespace dev --create-namespace
 echo "[dev-infra] Done."
