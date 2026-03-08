@@ -22,3 +22,16 @@ redis:
   password: dev
   storage: 1Gi
   port: 6379
+
+prometheus:
+  image: prom/prometheus:v3.2.1
+  storage: 5Gi
+  port: 9090
+
+otelcol:
+  image: otel/opentelemetry-collector-contrib:0.119.0
+  ports:
+    grpc: 4317
+    http: 4318
+    metrics: 8888
+    prometheusExporter: 8889
