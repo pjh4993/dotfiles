@@ -19,5 +19,6 @@ rabbitmq:
 
 redis:
   image: redis:7-alpine
+  password: dev
   storage: 1Gi
   port: 6379
