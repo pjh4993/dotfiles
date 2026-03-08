@@ -107,7 +107,6 @@ if [[ "$OSTYPE" == darwin* ]]; then
   export PKG_CONFIG_PATH="/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH"
   export CFLAGS="-I/opt/homebrew/include"
   export LDFLAGS="-L/opt/homebrew/lib"
-  export PATH="/opt/homebrew/opt/postgresql@17/bin:$PATH"
 elif [[ "$OSTYPE" == linux-gnu* ]]; then
   alias tailscale='tailscale'
 fi
@@ -134,3 +133,8 @@ zstyle ':omz:plugins:ssh-agent' quiet yes
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+# The following lines have been added by Docker Desktop to enable Docker CLI completions.
+fpath=(/Users/pyler/.docker/completions $fpath)
+autoload -Uz compinit
+compinit
+# End of Docker CLI completions
