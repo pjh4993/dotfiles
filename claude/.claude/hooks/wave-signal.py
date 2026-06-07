@@ -27,13 +27,18 @@ GREEN = "#50fa7b"   # turn finished, your move
 # event -> ("set", border_color, badge_icon, badge_color) | ("clear",)
 ACTIONS = {
     "PermissionRequest": ("set", RED, "lock", RED),
-    "Notification": ("set", YELLOW, "bell", YELLOW),
     "Stop": ("set", GREEN, "circle-check", GREEN),
     "PostToolUse": ("clear",),       # work resumed after approval
     "UserPromptSubmit": ("clear",),  # user is back and replied
     "SessionStart": ("clear",),
     "SessionEnd": ("clear",),
 }
+
+# Notification is too broad: it also fires for non-interactive events such as
+# /compact. Only the types below actually need the user to make a choice.
+# "permission_prompt" is intentionally omitted -- PermissionRequest handles it
+# (red), and reacting here too would race/override it.
+ATTENTION_NOTIFICATION_TYPES = {"idle_prompt"}
 
 
 def find_wsh():
@@ -86,6 +91,13 @@ def main():
         data = {}
 
     event = data.get("hook_event_name", "")
+
+    if event == "Notification":
+        # Only go yellow when the user actually needs to choose/respond.
+        if data.get("notification_type") in ATTENTION_NOTIFICATION_TYPES:
+            set_signal(wsh, YELLOW, "bell", YELLOW)
+        return
+
     action = ACTIONS.get(event)
     if not action:
         return
