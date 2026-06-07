@@ -1,4 +1,5 @@
 {
   "autoupdate:channel": "latest",
-  "telemetry:enabled": true
+  "telemetry:enabled": true,
+  "term:theme": "dracula"
 }
