@@ -38,4 +38,5 @@ brew "terminal-notifier"
 
 # GUI
 cask "alacritty"
+cask "wave"
 cask "nikitabobko/tap/aerospace"

@@ -25,9 +25,11 @@ install_macos() {
   echo "==> Setting up git-lfs..."
   git lfs install
 
+  install_tpm
+
   echo "==> Stowing packages..."
   cd "$DOTFILES_DIR"
-  stow -R "${BASE_PACKAGES[@]}" alacritty aerospace tmuxinator claude ssh
+  stow -R "${BASE_PACKAGES[@]}" alacritty aerospace tmuxinator claude ssh wave
 }
 
 install_linux() {
@@ -50,6 +52,15 @@ install_linux() {
   if [ "$HEADLESS" = false ] && ! command -v alacritty &>/dev/null; then
     echo "==> Installing Alacritty via snap..."
     sudo snap install alacritty --classic 2>/dev/null || echo "    Snap not available, install Alacritty manually"
+  fi
+
+  # Install Wave Terminal (GUI only)
+  if [ "$HEADLESS" = false ] && ! command -v waveterm &>/dev/null; then
+    echo "==> Installing Wave Terminal..."
+    WAVE_VERSION=$(curl -s "https://api.github.com/repos/wavetermdev/waveterm/releases/latest" | grep -Po '"tag_name": "v\K[^"]*')
+    curl -Lo /tmp/waveterm.deb "https://github.com/wavetermdev/waveterm/releases/download/v${WAVE_VERSION}/waveterm-linux-amd64-${WAVE_VERSION}.deb"
+    sudo apt install -y /tmp/waveterm.deb
+    rm -f /tmp/waveterm.deb
   fi
 
   # Install nvm and Node.js
@@ -181,13 +192,26 @@ install_linux() {
     fi
   fi
 
+  install_tpm
+
   echo "==> Stowing packages..."
   cd "$DOTFILES_DIR"
   if [ "$HEADLESS" = false ]; then
-    stow -R "${BASE_PACKAGES[@]}" alacritty i3 tmuxinator claude ssh
+    stow -R "${BASE_PACKAGES[@]}" alacritty i3 tmuxinator claude ssh wave
   else
     stow -R "${BASE_PACKAGES[@]}" tmuxinator claude ssh
   fi
+}
+
+install_tpm() {
+  TPM_DIR="$HOME/.tmux/plugins/tpm"
+  if [ ! -d "$TPM_DIR" ]; then
+    echo "==> Installing TPM (Tmux Plugin Manager)..."
+    git clone https://github.com/tmux-plugins/tpm "$TPM_DIR"
+  fi
+
+  echo "==> Installing tmux plugins (resurrect, continuum)..."
+  "$TPM_DIR/bin/install_plugins"
 }
 
 echo "dotfiles installer"
