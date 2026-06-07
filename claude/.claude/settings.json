@@ -17,15 +17,6 @@
             "command": "~/.claude/hooks/notify.sh"
           }
         ]
-      },
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/Users/pyler/.local/bin/uv run ~/.claude/hooks/claude-island-state.py"
-          }
-        ]
       }
     ],
     "PermissionRequest": [
@@ -34,16 +25,6 @@
           {
             "type": "command",
             "command": "~/.claude/hooks/wave-signal.py"
-          }
-        ]
-      },
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/Users/pyler/.local/bin/uv run ~/.claude/hooks/claude-island-state.py",
-            "timeout": 86400
           }
         ]
       }
@@ -56,46 +37,6 @@
             "command": "~/.claude/hooks/wave-signal.py"
           }
         ]
-      },
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/Users/pyler/.local/bin/uv run ~/.claude/hooks/claude-island-state.py"
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "matcher": "auto",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/Users/pyler/.local/bin/uv run ~/.claude/hooks/claude-island-state.py"
-          }
-        ]
-      },
-      {
-        "matcher": "manual",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/Users/pyler/.local/bin/uv run ~/.claude/hooks/claude-island-state.py"
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/Users/pyler/.local/bin/uv run ~/.claude/hooks/claude-island-state.py"
-          }
-        ]
       }
     ],
     "SessionEnd": [
@@ -106,14 +47,6 @@
             "command": "~/.claude/hooks/wave-signal.py"
           }
         ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/Users/pyler/.local/bin/uv run ~/.claude/hooks/claude-island-state.py"
-          }
-        ]
       }
     ],
     "SessionStart": [
@@ -122,14 +55,6 @@
           {
             "type": "command",
             "command": "~/.claude/hooks/wave-signal.py"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/Users/pyler/.local/bin/uv run ~/.claude/hooks/claude-island-state.py"
           }
         ]
       }
@@ -150,24 +75,6 @@
             "command": "~/.claude/hooks/notify.sh"
           }
         ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/Users/pyler/.local/bin/uv run ~/.claude/hooks/claude-island-state.py"
-          }
-        ]
-      }
-    ],
-    "SubagentStop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/Users/pyler/.local/bin/uv run ~/.claude/hooks/claude-island-state.py"
-          }
-        ]
       }
     ],
     "UserPromptSubmit": [
@@ -176,14 +83,6 @@
           {
             "type": "command",
             "command": "~/.claude/hooks/wave-signal.py"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/Users/pyler/.local/bin/uv run ~/.claude/hooks/claude-island-state.py"
           }
         ]
       }
