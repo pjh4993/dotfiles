@@ -1,0 +1,46 @@
+{
+  "andrew-a100-gpu-20260131": {
+    "conn:wshenabled": true,
+    "display:order": 7
+  },
+  "andrew-a100-gpu-idc": {
+    "conn:wshenabled": true,
+    "display:order": 6
+  },
+  "andrew-airflow-idc": {
+    "conn:wshenabled": true,
+    "display:order": 9
+  },
+  "andrew-b200-cpu-idc": {
+    "conn:wshenabled": true,
+    "display:order": 1
+  },
+  "andrew-b200-cpu-only": {
+    "conn:wshenabled": true,
+    "display:order": 2
+  },
+  "andrew-b200-gpu-idc": {
+    "conn:wshenabled": true,
+    "display:order": 3
+  },
+  "andrew-b200-ml-training-idc": {
+    "conn:wshenabled": true,
+    "display:order": 4
+  },
+  "andrew-b200-vllm-repeatability-idc": {
+    "conn:wshenabled": true,
+    "display:order": 5
+  },
+  "andrew-rtx3090-gpu-idc": {
+    "conn:wshenabled": true,
+    "display:order": 8
+  },
+  "hcloud-gh-action-runner": {
+    "conn:wshenabled": true,
+    "display:order": 11
+  },
+  "vclab-b200-training-idc": {
+    "conn:wshenabled": true,
+    "display:order": 10
+  }
+}
