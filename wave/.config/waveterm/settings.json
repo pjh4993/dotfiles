@@ -1,5 +1,9 @@
 {
   "autoupdate:channel": "latest",
   "telemetry:enabled": true,
-  "term:theme": "dracula-darker"
+  "term:theme": "dracula-darker",
+  "app:defaultnewblock": "launcher",
+  "web:defaulturl": "https://github.com",
+  "web:openlinksinternally": true,
+  "term:bellsound": true
 }
