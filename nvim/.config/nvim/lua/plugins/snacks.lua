@@ -42,6 +42,18 @@ return {
     -- worktree container (the `gwt` layout). See util/snacks_worktree_git.lua.
     require("util.snacks_worktree_git").patch()
 
+    -- Install the base-diff filter hook (toggled via <leader>eg below).
+    require("util.snacks_basediff").patch()
+
     return opts
   end,
+  keys = {
+    {
+      "<leader>eg",
+      function()
+        require("util.snacks_basediff").toggle()
+      end,
+      desc = "Explorer: toggle changed-vs-base filter",
+    },
+  },
 }

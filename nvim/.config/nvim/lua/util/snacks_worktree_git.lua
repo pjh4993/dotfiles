@@ -36,6 +36,7 @@ local function is_bare_root(cwd)
   is_bare_cache[cwd] = bare
   return bare
 end
+M.is_bare_root = is_bare_root
 
 -- Absolute paths of the working trees nested under cwd (the bare dir itself
 -- has no work tree, so it is skipped).
@@ -46,18 +47,29 @@ local function worktrees_under(cwd)
   if vim.v.shell_error ~= 0 then
     return {}
   end
+  -- Porcelain output is one block per worktree; a block with a `bare` line is
+  -- the bare repo itself (no work tree), which must be skipped.
   local paths = {}
+  local cur, bare = nil, false
+  local function flush()
+    if cur and not bare and cur ~= cwd and cur:find(cwd .. "/", 1, true) == 1 then
+      paths[#paths + 1] = cur
+    end
+    cur, bare = nil, false
+  end
   for _, line in ipairs(out) do
     local p = line:match("^worktree (.+)$")
     if p then
-      p = vim.fs.normalize(p)
-      if p ~= cwd and p:find(cwd .. "/", 1, true) == 1 then
-        paths[#paths + 1] = p
-      end
+      flush()
+      cur = vim.fs.normalize(p)
+    elseif line == "bare" then
+      bare = true
     end
   end
+  flush()
   return paths
 end
+M.worktrees_under = worktrees_under
 
 -- Scan every nested worktree, accumulate {status, abspath} entries, and hand
 -- them to the explorer's `_update` once all scans finish. Mirrors the spawn /
