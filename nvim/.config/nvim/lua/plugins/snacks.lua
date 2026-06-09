@@ -1,35 +1,47 @@
 return {
   "folke/snacks.nvim",
   opts = function(_, opts)
-    -- highlight for files changed vs the base branch
-    vim.api.nvim_set_hl(0, "GitBaseChanged", { link = "WarningMsg", default = true })
-
-    -- Wrap the explorer's file format: append a colored dot to files/folders
-    -- whose path differs from the base branch (see util/gitbase.lua).
-    opts.picker = opts.picker or {}
-    opts.picker.sources = opts.picker.sources or {}
-    opts.picker.sources.explorer = opts.picker.sources.explorer or {}
-    opts.picker.sources.explorer.format = function(item, picker)
-      local ret = Snacks.picker.format.file(item, picker)
-      local gb = require("util.gitbase")
-      if gb.base and item.file and gb.paths[item.file] then
-        ret[#ret + 1] = { "  ●", "GitBaseChanged" }
+    -- VSCode-style git decorations in the file explorer.
+    --
+    -- Snacks already does the structural work for us out of the box:
+    --   * the explorer runs `git status --porcelain=v1` (working-tree status,
+    --     same scope VSCode shows by default),
+    --   * each entry gets a right-aligned letter badge (M / A / D / ? / R / !),
+    --   * `formatters.file.git_status_hl` (on by default) tints the *filename*
+    --     with the matching status highlight, and
+    --   * status bubbles up so parent folders of a change are tinted too.
+    --
+    -- The only gap vs VSCode is colour: Snacks' defaults leave untracked files
+    -- grey and modified files on DiagnosticWarn. Re-link the status groups to
+    -- the theme's GitSigns colours so the explorer matches VSCode semantics
+    -- (untracked/added = green, modified = change colour, deleted = red) while
+    -- still adapting to whatever colorscheme is active.
+    local function set_git_hls()
+      local link = function(from, to)
+        vim.api.nvim_set_hl(0, from, { link = to, default = false })
       end
-      return ret
+      link("SnacksPickerGitStatusUntracked", "GitSignsAdd") -- ? -> green, like VSCode
+      link("SnacksPickerGitStatusAdded", "GitSignsAdd") -- A -> green
+      link("SnacksPickerGitStatusStaged", "GitSignsAdd") -- staged -> green
+      link("SnacksPickerGitStatusModified", "GitSignsChange") -- M -> change colour
+      link("SnacksPickerGitStatusRenamed", "GitSignsChange") -- R -> change colour
+      link("SnacksPickerGitStatusCopied", "GitSignsChange") -- C -> change colour
+      link("SnacksPickerGitStatusDeleted", "GitSignsDelete") -- D -> red
+      link("SnacksPickerGitStatusUnmerged", "DiagnosticError") -- conflicts -> red
+      -- Ignored intentionally left on its grey default.
     end
 
-    -- pick up commits/checkouts done outside nvim
-    vim.api.nvim_create_autocmd({ "FocusGained", "BufWritePost" }, {
-      group = vim.api.nvim_create_augroup("gitbase_refresh", { clear = true }),
-      callback = function()
-        require("util.gitbase").maybe_refresh()
-      end,
+    set_git_hls()
+    -- Re-apply after a colorscheme swap so the links survive `:colorscheme`.
+    vim.api.nvim_create_autocmd("ColorScheme", {
+      group = vim.api.nvim_create_augroup("snacks_git_hls", { clear = true }),
+      callback = set_git_hls,
     })
+
+    -- Show git status in the explorer even when it is rooted at a bare-repo
+    -- worktree container (the `gwt` layout). See util/snacks_worktree_git.lua.
+    require("util.snacks_worktree_git").patch()
 
     return opts
   end,
-  keys = {
-    { "<leader>eb", function() require("util.gitbase").enable() end, desc = "Explorer: mark files changed vs base branch" },
-    { "<leader>eB", function() require("util.gitbase").disable() end, desc = "Explorer: clear base diff marks" },
-  },
 }
