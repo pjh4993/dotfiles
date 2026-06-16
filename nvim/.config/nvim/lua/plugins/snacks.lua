@@ -29,6 +29,8 @@ return {
       link("SnacksPickerGitStatusDeleted", "GitSignsDelete") -- D -> red
       link("SnacksPickerGitStatusUnmerged", "DiagnosticError") -- conflicts -> red
       -- Ignored intentionally left on its grey default.
+      -- (SnacksBaseDiffName -- the changed-vs-base-PR tint -- is defined in
+      -- util/snacks_basediff.lua, which blends a green bg from GitSignsAdd.)
     end
 
     set_git_hls()
@@ -42,18 +44,9 @@ return {
     -- worktree container (the `gwt` layout). See util/snacks_worktree_git.lua.
     require("util.snacks_worktree_git").patch()
 
-    -- Install the base-diff filter hook (toggled via <leader>eg below).
+    -- Always-on left-margin marks for files changed vs each branch's base PR.
     require("util.snacks_basediff").patch()
 
     return opts
   end,
-  keys = {
-    {
-      "<leader>eg",
-      function()
-        require("util.snacks_basediff").toggle()
-      end,
-      desc = "Explorer: toggle changed-vs-base filter",
-    },
-  },
 }
