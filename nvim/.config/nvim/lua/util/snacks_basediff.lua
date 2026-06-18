@@ -5,8 +5,10 @@
 --
 -- The base branch is resolved from the open PR for each worktree's branch via
 -- `gh pr view` (so the marks mirror exactly what that PR shows). When there is
--- no connected PR (or gh is unavailable) it falls back to origin/main|master.
--- If neither resolves, nothing is marked and the explorer is left untouched.
+-- no connected PR (or gh is unavailable, or the PR's base ref can't be found)
+-- the worktree is left unmarked -- the green changed-vs-base tint only ever
+-- reflects a real PR's diff. (`:BaseDiff` still falls back to main|master so the
+-- manual diff command keeps working on un-PR'd branches.)
 --
 -- In the bare-repo `gwt` layout the explorer is rooted at the project dir and
 -- every worktree is a top-level folder, so the committed `git diff <base>...HEAD`
@@ -125,12 +127,14 @@ local function first_ref(w, names)
   return nil
 end
 
--- Resolve the ref to diff against, asynchronously, and hand it to `cb`. Prefer
--- the open PR's base branch (via `gh pr view`, so the marks mirror exactly what
--- that PR would show); fall back to the usual trunk names when there's no PR or
--- gh is unavailable. Cached: PR lookups hit the network -- doing them inline is
--- what made opening the explorer slow -- and a branch's base rarely changes
--- within a session.
+-- Resolve the PR base ref to diff against, asynchronously, and hand it to `cb`.
+-- Looks up the open PR's base branch (via `gh pr view`, so the marks mirror
+-- exactly what that PR would show) and verifies it as a ref; hands back nil when
+-- there's no connected PR, gh is unavailable, or the base ref can't be found.
+-- Callers that want a trunk fallback (only `:BaseDiff`) apply it themselves, so
+-- the explorer marks stay PR-only. Cached: PR lookups hit the network -- doing
+-- them inline is what made opening the explorer slow -- and a branch's base
+-- rarely changes within a session.
 ---@param w string worktree root
 ---@param cb fun(base: string?)
 local function resolve_base(w, cb)
@@ -143,7 +147,6 @@ local function resolve_base(w, cb)
   local function finish(pr)
     vim.schedule(function()
       local base = pr and first_ref(w, { pr }) or nil
-      base = base or first_ref(w, { "main", "master" })
       base_cache[w] = base or false
       cb(base)
     end)
@@ -281,6 +284,146 @@ function M.recompute(force)
   end
 end
 
+M.diff_mode = false ---@type boolean diff-on-open mode active (see toggle_diff_mode)
+M.diff_state = nil ---@type {base_buf: integer, work_buf: integer}? buffers of the live base-diff
+local diffing = false ---@type boolean re-entrancy guard while a diff is being opened
+
+-- Tear down the live base-diff in the current tab. Closes the windows showing the
+-- tracked working/base buffers (plus any stray fugitive scratch window), except
+-- `keep`. We can't key off `&diff`: opening a new file into a diff window clears
+-- it, so by replace time the stale windows no longer look like diffs -- the
+-- tracked buffer numbers are what reliably identifies them. Force-close because
+-- the working split often has unsaved edits; that only hides the buffer (its
+-- contents survive), so no edits are lost.
+---@param keep integer window id to never close
+local function close_diff(keep)
+  local st = M.diff_state
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if win ~= keep and vim.api.nvim_win_is_valid(win) then
+      local buf = vim.api.nvim_win_get_buf(win)
+      local tracked = st and (buf == st.base_buf or buf == st.work_buf)
+      local scratch = vim.api.nvim_buf_get_name(buf):match("^fugitive://")
+      if tracked or scratch then
+        pcall(vim.api.nvim_win_close, win, true)
+      end
+    end
+  end
+  pcall(vim.cmd, "diffoff!") -- drop &diff on whatever window we kept
+  M.diff_state = nil
+end
+
+-- Open a vertical diff of the current file against its branch's base -- the same
+-- ref the explorer marks against: the connected PR's base branch, else
+-- origin/main|master. Diffs against the merge-base (not base's tip) so it mirrors
+-- the three-dot `base...HEAD` diff a PR shows -- i.e. only this branch's own
+-- changes, not commits the base gained after this branch forked. The working
+-- tree is on the right, so unstaged edits show too. :BaseDiff / <leader>gd
+--
+-- When `replace` is set, any existing base-diff in the tab is torn down first so
+-- the new file's diff takes its place -- this is what diff mode uses as you move
+-- between files (M.toggle_diff_mode).
+---@param replace? boolean
+function M.diff_current(replace)
+  local target_win = vim.api.nvim_get_current_win()
+  local target_buf = vim.api.nvim_get_current_buf()
+  local file = vim.api.nvim_buf_get_name(target_buf)
+  if file == "" or vim.bo[target_buf].buftype ~= "" then
+    return vim.notify("BaseDiff: not a file buffer", vim.log.levels.WARN)
+  end
+  local top = vim.trim(vim.fn.system({ "git", "-C", vim.fs.dirname(file), "rev-parse", "--show-toplevel" }) or "")
+  if vim.v.shell_error ~= 0 or top == "" then
+    return vim.notify("BaseDiff: not inside a git repo", vim.log.levels.WARN)
+  end
+  local w = norm(top)
+  resolve_base(w, function(base)
+    -- The explorer marks are PR-only, but the manual diff command still wants a
+    -- sensible target on un-PR'd branches, so fall back to the trunk here.
+    base = base or first_ref(w, { "main", "master" })
+    if not base then
+      return vim.notify("BaseDiff: no connected PR base or trunk found", vim.log.levels.WARN)
+    end
+    vim.system({ "git", "-C", w, "merge-base", base, "HEAD" }, { text = true }, function(res)
+      local out = vim.trim(res.stdout or "")
+      -- Fall back to base's tip if there's no common ancestor (unrelated history).
+      local rev = (res.code == 0 and out ~= "") and out or base
+      vim.schedule(function()
+        -- The target window may be gone if focus moved during the async base
+        -- lookup (first call hits `gh`); bail rather than diff the wrong place.
+        if not vim.api.nvim_win_is_valid(target_win) then
+          return
+        end
+        vim.api.nvim_set_current_win(target_win)
+        -- Suppress the BufWinEnter handler for the windows Gvdiffsplit opens, so
+        -- diff mode doesn't recurse on its own scratch/working buffers.
+        diffing = true
+        if replace then
+          close_diff(target_win)
+        end
+        -- vim-fugitive is lazy (loads as a vim-flog dependency), so :Gvdiffsplit
+        -- may not be registered yet -- pull it in on first use.
+        if vim.fn.exists(":Gvdiffsplit") == 0 then
+          pcall(function()
+            require("lazy").load({ plugins = { "vim-fugitive" } })
+          end)
+        end
+        local ok, err = pcall(vim.cmd, "Gvdiffsplit " .. rev)
+        if ok then
+          -- Mark the working buffer as carrying its own base-diff, so the diff-mode
+          -- handler recognises an established diff and leaves it alone.
+          pcall(function()
+            vim.b[target_buf].basediff = true
+          end)
+          -- Record the two buffers now sharing the diff so a later replace can find
+          -- and close their windows even after &diff has been cleared off them.
+          local base_buf
+          for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+            local b = vim.api.nvim_win_get_buf(win)
+            if vim.wo[win].diff and vim.api.nvim_buf_get_name(b):match("^fugitive://") then
+              base_buf = b
+            end
+          end
+          M.diff_state = { base_buf = base_buf, work_buf = target_buf }
+        else
+          vim.notify("BaseDiff: " .. tostring(err), vim.log.levels.ERROR)
+        end
+        -- Clear the guard only after the induced BufWinEnter events have drained.
+        vim.schedule(function()
+          diffing = false
+        end)
+      end)
+    end)
+  end)
+end
+
+-- Toggle diff-on-open mode. While on, opening any file shows its base-diff and
+-- swaps out the previous file's, so navigating the explorer walks you through
+-- each file's diff. Turning it on diffs the current file immediately; turning it
+-- off drops the base split and returns to the plain file. <leader>gD / :BaseDiffMode
+function M.toggle_diff_mode()
+  M.diff_mode = not M.diff_mode
+  if M.diff_mode then
+    vim.notify("BaseDiff mode: ON", vim.log.levels.INFO)
+    if vim.bo.buftype == "" and vim.api.nvim_buf_get_name(0) ~= "" then
+      M.diff_current(true)
+    end
+  else
+    -- Keep the working file visible; drop the base split. Prefer the tracked
+    -- working window over wherever focus happens to be.
+    local keep = vim.api.nvim_get_current_win()
+    local st = M.diff_state
+    if st then
+      for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+        if vim.api.nvim_win_get_buf(win) == st.work_buf then
+          keep = win
+          break
+        end
+      end
+    end
+    close_diff(keep)
+    vim.notify("BaseDiff mode: OFF", vim.log.levels.INFO)
+  end
+end
+
 -- Install the format + git-refresh hooks. Idempotent; safe to call at startup.
 function M.patch()
   define_hl()
@@ -342,7 +485,41 @@ function M.patch()
     end,
   })
 
+  -- Diff mode: while on, every file displayed is shown as a base-diff split,
+  -- replacing the previous file's. See M.toggle_diff_mode. BufWinEnter fires
+  -- whenever a buffer lands in a window (e.g. picked from the explorer).
+  vim.api.nvim_create_autocmd("BufWinEnter", {
+    group = group,
+    callback = function(ev)
+      if not M.diff_mode or diffing then
+        return
+      end
+      if vim.bo[ev.buf].buftype ~= "" then
+        return -- only real file buffers (skips the picker, fugitive scratch, ...)
+      end
+      local name = vim.api.nvim_buf_get_name(ev.buf)
+      if name == "" or name:match("^fugitive://") then
+        return
+      end
+      -- Already showing this buffer's own base-diff -> leave it. Only act on a
+      -- file not yet diffed: a freshly opened one, or one dropped into a window
+      -- that merely inherited &diff from the diff it displaced.
+      if vim.wo.diff and vim.b[ev.buf].basediff then
+        return
+      end
+      M.diff_current(true)
+    end,
+  })
+
   vim.api.nvim_create_user_command("BaseDiffDebug", M.debug, { desc = "snacks base-diff: diagnostics" })
+  vim.api.nvim_create_user_command("BaseDiff", function()
+    M.diff_current()
+  end, { desc = "Vertical diff: current file vs branch base" })
+  vim.api.nvim_create_user_command("BaseDiffMode", M.toggle_diff_mode, { desc = "Toggle base-diff-on-open mode" })
+  vim.keymap.set("n", "<leader>gd", function()
+    M.diff_current()
+  end, { desc = "Diff file vs base branch" })
+  vim.keymap.set("n", "<leader>gD", M.toggle_diff_mode, { desc = "Toggle base-diff mode" })
 end
 
 -- Print why marks may not be showing: patch state, explorer cwds, the resolved
