@@ -42,6 +42,42 @@ _cleanup_empty_parents() {
 	done
 }
 
+_update_workspace() {
+	local root="$1"
+	# Find a *.code-workspace file at the root; skip if none exists
+	local workspace_file
+	workspace_file=$(find "$root" -maxdepth 1 -name "*.code-workspace" | head -1)
+	[[ -z "$workspace_file" ]] && return 0
+
+	local folders=()
+	while IFS= read -r line; do
+		local wt_path
+		wt_path=$(echo "$line" | awk '{print $1}')
+		[[ "$wt_path" == */.bare ]] && continue
+		local rel="${wt_path#"$root/"}"
+		folders+=("$rel")
+	done < <(git -C "$root" worktree list)
+
+	{
+		printf '{\n'
+		printf '  "folders": [\n'
+		local last=$(( ${#folders[@]} - 1 ))
+		local i
+		for i in "${!folders[@]}"; do
+			local f="${folders[$i]}"
+			if (( i < last )); then
+				printf '    { "name": "%s", "path": "%s" },\n' "$f" "$f"
+			else
+				printf '    { "name": "%s", "path": "%s" }\n' "$f" "$f"
+			fi
+		done
+		printf '  ]\n'
+		printf '}\n'
+	} > "$workspace_file"
+
+	echo "==> Updated: $(basename "$workspace_file")"
+}
+
 case "$cmd" in
 clone)
 	url="$1"
@@ -87,6 +123,7 @@ add)
 	else
 		git worktree add -b "$branch" "$root/$branch" "$base"
 	fi
+	_update_workspace "$root"
 	echo "==> cd $root/$branch"
 	;;
 rm)
@@ -97,6 +134,7 @@ rm)
 	root=$(_gwt_root)
 	git worktree remove "$root/$branch"
 	_cleanup_empty_parents "$root/$branch" "$root"
+	_update_workspace "$root"
 	;;
 ls)
 	git worktree list
@@ -307,6 +345,7 @@ clean)
 		echo "No merged worktrees to clean (target: $target)"
 	else
 		echo "==> Cleaned $cleaned merged worktree(s)"
+		_update_workspace "$root"
 	fi
 	;;
 rename|mv)
@@ -328,6 +367,7 @@ rename|mv)
 	# Move the worktree directory
 	git worktree move "$old_path" "$new_path"
 	_cleanup_empty_parents "$old_path" "$root"
+	_update_workspace "$root"
 	echo "==> Renamed: $old_branch -> $new_branch"
 	echo "==> cd $new_path"
 	;;

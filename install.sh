@@ -29,7 +29,7 @@ install_macos() {
 
   echo "==> Stowing packages..."
   cd "$DOTFILES_DIR"
-  stow -R "${BASE_PACKAGES[@]}" alacritty aerospace tmuxinator claude ssh wave
+  safe_stow "${BASE_PACKAGES[@]}" alacritty aerospace tmuxinator claude ssh wave
 }
 
 install_linux() {
@@ -197,10 +197,32 @@ install_linux() {
   echo "==> Stowing packages..."
   cd "$DOTFILES_DIR"
   if [ "$HEADLESS" = false ]; then
-    stow -R "${BASE_PACKAGES[@]}" alacritty i3 tmuxinator claude ssh wave
+    safe_stow "${BASE_PACKAGES[@]}" alacritty i3 tmuxinator claude ssh wave
   else
-    stow -R "${BASE_PACKAGES[@]}" tmuxinator claude ssh
+    safe_stow "${BASE_PACKAGES[@]}" tmuxinator claude ssh
   fi
+}
+
+# Stow packages, backing up any pre-existing real (non-symlink) files that would
+# otherwise abort the ENTIRE stow invocation. stow fails the whole command on a
+# single conflict, so one stray plain file (e.g. a hand-written ~/.tmux.conf)
+# silently prevents every package in the same call from being stowed.
+safe_stow() {
+  local conflicts rel target
+  conflicts=$(stow -nv -R "$@" 2>&1 \
+    | sed -n 's/.*existing target is neither a link nor a directory: //p' \
+    | sort -u) || true
+  if [ -n "$conflicts" ]; then
+    while IFS= read -r rel; do
+      [ -z "$rel" ] && continue
+      target="$HOME/$rel"
+      if [ -e "$target" ] && [ ! -L "$target" ]; then
+        echo "    Backing up pre-existing $target -> $target.pre-stow.bak"
+        mv "$target" "$target.pre-stow.bak"
+      fi
+    done <<< "$conflicts"
+  fi
+  stow -R "$@"
 }
 
 install_tpm() {

@@ -70,7 +70,7 @@ ZSH_THEME="robbyrussell"
 # Custom plugins may be added to $ZSH_CUSTOM/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
 # Add wisely, as too many plugins slow down shell startup.
-plugins=(git zsh-autosuggestions zsh-syntax-highlighting ssh-agent)
+plugins=(zsh-autosuggestions zsh-syntax-highlighting ssh-agent)
 
 source $ZSH/oh-my-zsh.sh
 unalias gwt 2>/dev/null # use ~/.local/bin/gwt instead
@@ -131,10 +131,17 @@ zstyle ':omz:plugins:ssh-agent' identities id_rsa
 zstyle ':omz:plugins:ssh-agent' quiet yes
 
 export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
-# The following lines have been added by Docker Desktop to enable Docker CLI completions.
-fpath=(/Users/pyler/.docker/completions $fpath)
-autoload -Uz compinit
-compinit
-# End of Docker CLI completions
+# Lazy-load nvm: sourcing nvm.sh eagerly costs ~6s. Defer until first use.
+_lazy_load_nvm() {
+  unset -f nvm node npm npx yarn 2>/dev/null
+  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+  [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+}
+for _cmd in nvm node npm npx yarn; do
+  eval "${_cmd}() { _lazy_load_nvm; ${_cmd} \"\$@\"; }"
+done
+unset _cmd
+
+source /home/andrew/.config/broot/launcher/bash/br
+
+. "$HOME/.local/bin/env"
