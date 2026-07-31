@@ -14,7 +14,9 @@ This repo uses a **bare repository + git worktree** pattern for parallel multi-a
 ├── .data/                        # local data directory (not in git, shared across worktrees)
 ├── .documents/                   # reference documents (not in git, shared across worktrees)
 ├── .envrc                        # direnv — shared env vars for all worktrees
+├── .envrc.worktree               # direnv — per-worktree env (sourced, not copied)
 ├── main/                         # worktree: main branch
+│   └── .envrc                    # 3-line stub chaining the two above (git-ignored)
 ├── <feature-branch>/             # worktree: one per active branch
 └── ...
 ```
@@ -22,7 +24,8 @@ This repo uses a **bare repository + git worktree** pattern for parallel multi-a
 - `.bare/` is the shared git object database. All worktrees reference it.
 - `.data/` is a shared local data directory for any data storage (outputs, parquet files, databases, etc.). Not checked into git. All worktrees can read/write here.
 - `.documents/` contains reference documents (API guides, specs, PDFs, etc.) shared across all worktrees. Not checked into git.
-- `.envrc` is loaded by [direnv](https://direnv.net/) and exports shared environment variables. Typically includes paths to `.data/` and `.documents/`, API keys, and other shared config.
+- `.envrc` is loaded by [direnv](https://direnv.net/) and exports shared environment variables — `GWT_ROOT`, `GWT_VENV_ROOT`, paths to `.data/` and `.documents/`, API keys, and other shared config. See [direnv Setup](#direnv-setup).
+- `.envrc.worktree` holds the *per-worktree* half of the direnv config (the branch-derived venv path). Each worktree's own `.envrc` sources it, so there is exactly one copy of the logic.
 - Each top-level directory (other than `.bare/`, `.git`, `.claude/`, `.data/`, `.documents/`) is a **git worktree** checked out on its own branch.
 - Worktree directory names match their branch name.
 
@@ -66,8 +69,54 @@ You **may** read files, explore the codebase, and run read-only commands (e.g. `
 
 1. **Create a worktree** — run `gwt add <branch-name> main` from this root.
 2. **`cd` into the worktree** — e.g. `cd <project-root>/<branch-name>/`
-3. **Install dependencies** — run the project's dependency install command (e.g. `uv sync`, `npm install`) inside the worktree.
+3. **Install dependencies** — run the project's dependency install command (e.g. `uv sync`, `npm install`) inside the worktree. `gwt add` already wired up direnv; see [direnv Setup](#direnv-setup) if the env looks wrong.
 4. **Then start working** — only now may you edit files or run commands that modify state.
+
+### direnv Setup
+
+The env is split in two because **direnv executes an `.envrc` with `PWD` set to that file's own directory** — a single root `.envrc` therefore cannot tell which worktree you are in, and cannot compute a per-branch value like a venv path.
+
+| File | Scope | Holds |
+|------|-------|-------|
+| `.envrc` (worktree root) | shared by all worktrees | `GWT_ROOT`, `GWT_PROJECT`, `GWT_VENV_ROOT`, API keys, `.data`/`.documents` paths |
+| `.envrc.worktree` (worktree root) | sourced by each worktree | `GWT_BRANCH`, `GWT_WORKTREE`, and (for Python) `UV_PROJECT_ENVIRONMENT` + `PATH_add` of the venv's `bin/` |
+| `<worktree>/.envrc` | one per worktree | `GWT_WORKTREE`, then chains the two above |
+
+Every worktree's `.envrc` is byte-identical:
+
+```bash
+export GWT_WORKTREE="$PWD"                # the one thing only the stub knows
+source_up                                 # root .envrc → GWT_ROOT, GWT_VENV_ROOT, …
+source_env "$GWT_ROOT/.envrc.worktree"    # per-worktree → GWT_BRANCH, venv path
+```
+
+**`gwt clone` and `gwt add` create and `direnv allow` this for you** — the manual equivalent is:
+
+```bash
+cd <worktree>
+printf 'export GWT_WORKTREE="$PWD"\nsource_up\nsource_env "$GWT_ROOT/.envrc.worktree"\n' > .envrc
+direnv allow
+```
+
+Verify:
+
+```bash
+direnv export bash | grep -o 'GWT_BRANCH=[^;]*'
+```
+
+Notes:
+
+- **The stub is `source_env`, not a copy or a symlink.** Copying duplicates logic across worktrees; a *relative* symlink breaks for nested branch dirs (`feat/api-add-x/` is two levels deep). Chaining through `$GWT_ROOT` is depth-independent and fixes land everywhere at once.
+- **`source_up` must come before `source_env`** — `.envrc.worktree` reads `GWT_ROOT` and `GWT_VENV_ROOT` from the root `.envrc`.
+- **`GWT_WORKTREE` must be exported by the stub, before anything else.** direnv's `source_env` *cds to the sourced file's directory* before sourcing it, so `$PWD` inside `.envrc.worktree` is the worktree **root**, not the worktree — deriving the branch from `$PWD` there silently gives every worktree the root's branch (and so the wrong venv). Anything branch-specific in `.envrc.worktree` must go through `$GWT_WORKTREE`, e.g. `git -C "$GWT_WORKTREE" branch --show-current`.
+- **`direnv allow` is per-worktree** and must be re-run after *any* edit to `.envrc`, `.envrc.worktree`, or the root `.envrc` — direnv blocks on the content hash and silently exports nothing until you re-allow.
+- **`<worktree>/.envrc` is git-ignored via `.bare/info/exclude`**, which is shared by every worktree, so it never shows up in `git status` and never needs adding to a tracked `.gitignore`.
+- **Editing the root `.envrc` changes every worktree.** Anything branch-, feature-, or experiment-specific belongs in `.envrc.worktree` or stays out of direnv entirely.
+- **Non-zsh shells need the hook.** A plain `bash` (including tool-driven/CI shells) loads nothing unless `eval "$(direnv hook bash)"` is in `~/.bashrc`.
+
+### Virtualenv Location (Python projects)
+
+The uv lines in `.envrc` / `.envrc.worktree` ship commented out — uncomment them in a Python project. They put each worktree's venv under `/tmp/<project>-venvs/<branch>` rather than inside the worktree, so worktrees stay lightweight and `gwt rm` doesn't have to delete gigabytes of wheels. The uv cache lives on `/tmp` too — same filesystem as the venvs, so uv hardlinks wheels into place instead of copying them.
 
 ### Branch Naming Convention
 

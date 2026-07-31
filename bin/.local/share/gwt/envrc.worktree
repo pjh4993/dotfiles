@@ -1,0 +1,35 @@
+# Per-worktree direnv config — stored once at the root, sourced (not copied)
+# by every worktree. Installed by `gwt clone`.
+#
+# Each worktree has its own three-line `.envrc`, written by `gwt add`:
+#
+#     export GWT_WORKTREE="$PWD"              # capture the worktree dir
+#     source_up                               # worktree-root .envrc
+#     source_env "$GWT_ROOT/.envrc.worktree"  # this file
+#
+# Keeping the logic here means a fix lands in every worktree at once, and the
+# indirection is depth-independent, so it also works for nested branch dirs
+# like `feat/api-add-x/`.
+#
+# CAREFUL: direnv's `source_env` cds to the sourced file's directory before
+# sourcing it, so $PWD in here is the worktree *root*, not the worktree. Only
+# $GWT_WORKTREE (captured by the stub) identifies the caller — everything
+# branch-specific below must go through it.
+
+[ -n "${GWT_WORKTREE:-}" ] || export GWT_WORKTREE="$PWD"
+
+# Branch name -> flat directory name (feat/api-add-x -> feat-api-add-x).
+# Falls back to the worktree directory name on a detached HEAD.
+_gwt_branch="$(git -C "$GWT_WORKTREE" branch --show-current 2>/dev/null | tr '/' '-')"
+[ -n "$_gwt_branch" ] || _gwt_branch="$(basename "$GWT_WORKTREE")"
+
+export GWT_BRANCH="$_gwt_branch"
+
+# --- uv: uncomment for Python projects ---------------------------------------
+# Per-branch venv, plus its console scripts on PATH so `pytest`, `ruff`, … work
+# without the `uv run` prefix. Harmless before the first `uv sync`.
+#
+# export UV_PROJECT_ENVIRONMENT="${GWT_VENV_ROOT}/${_gwt_branch}"
+# PATH_add "$UV_PROJECT_ENVIRONMENT/bin"
+
+unset _gwt_branch

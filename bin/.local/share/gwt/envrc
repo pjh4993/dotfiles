@@ -1,0 +1,28 @@
+# Shared direnv config for every worktree in this project.
+# Installed at the worktree root by `gwt clone`.
+#
+# IMPORTANT: direnv executes this file with PWD set to THIS directory (the
+# worktree root), *not* the directory you cd'd into. So nothing here can know
+# which worktree you are in — anything branch-specific belongs in
+# `.envrc.worktree`, which each worktree's own `.envrc` pulls in.
+
+export GWT_ROOT="$PWD"
+export GWT_PROJECT="$(basename "$PWD")"
+
+# Parent dir for the per-worktree virtualenvs. The actual per-worktree path is
+# computed in `.envrc.worktree`. Kept off the repo tree so worktrees stay
+# lightweight and `gwt rm` never has to delete gigabytes of wheels.
+export GWT_VENV_ROOT="/tmp/${GWT_PROJECT}-venvs"
+mkdir -p "$GWT_VENV_ROOT"
+
+# --- uv: uncomment for Python projects ---------------------------------------
+# Keep the wheel cache on the same filesystem as the venvs ( /tmp ) so uv can
+# hardlink wheels out of the cache into the venv instead of copying them.
+#
+# export UV_CACHE_DIR="/tmp/${GWT_PROJECT}-uv-cache"
+# mkdir -p "$UV_CACHE_DIR"
+
+# --- shared, git-ignored directories: uncomment as needed ---------------------
+# export GWT_DATA_DIR="$GWT_ROOT/.data"
+# export GWT_DOCUMENTS_DIR="$GWT_ROOT/.documents"
+# mkdir -p "$GWT_DATA_DIR" "$GWT_DOCUMENTS_DIR"

@@ -23,8 +23,16 @@ _is_bare_root() {
 
 # Detect the default branch (origin/HEAD -> main, develop, etc.)
 _default_branch() {
-	local branch
-	branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')
+	local branch common
+	# `|| true`: symbolic-ref exits 1 when origin/HEAD is unset, which under
+	# `set -e -o pipefail` would abort the script instead of falling back.
+	branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||') || true
+	if [[ -z "$branch" ]]; then
+		# `git clone --bare` doesn't create origin/HEAD, but it does point the
+		# bare repo's own HEAD at the remote's default branch.
+		common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || true
+		[[ -n "$common" ]] && branch=$(git -C "$common" symbolic-ref --short HEAD 2>/dev/null) || true
+	fi
 	echo "${branch:-main}"
 }
 
@@ -40,6 +48,57 @@ _cleanup_empty_parents() {
 			break
 		fi
 	done
+}
+
+# Directory holding the gwt templates (CLAUDE.md, envrc, envrc.worktree)
+_gwt_data_dir() {
+	echo "${XDG_DATA_HOME:-$HOME/.local/share}/gwt"
+}
+
+# Install the shared direnv config at the worktree root and git-ignore the
+# per-worktree stubs. Called once, by `gwt clone`.
+_install_envrc_root() {
+	local root="$1" data_dir
+	data_dir=$(_gwt_data_dir)
+
+	if [[ -f "$data_dir/envrc" && ! -f "$root/.envrc" ]]; then
+		cp "$data_dir/envrc" "$root/.envrc"
+		echo "==> Copied .envrc"
+	fi
+	if [[ -f "$data_dir/envrc.worktree" && ! -f "$root/.envrc.worktree" ]]; then
+		cp "$data_dir/envrc.worktree" "$root/.envrc.worktree"
+		echo "==> Copied .envrc.worktree"
+	fi
+
+	# Ignore the per-worktree stubs via .bare/info/exclude — shared by every
+	# worktree, so it never has to touch a tracked .gitignore.
+	local exclude="$root/.bare/info/exclude"
+	mkdir -p "$(dirname "$exclude")"
+	if ! grep -qxF '.envrc' "$exclude" 2>/dev/null; then
+		printf '\n# direnv: per-worktree .envrc stub (gwt)\n.envrc\n' >> "$exclude"
+	fi
+
+	command -v direnv &>/dev/null && (cd "$root" && direnv allow) 2>/dev/null || true
+}
+
+# Write a worktree's 2-line .envrc stub and trust it with direnv.
+# No-op unless the root carries this gwt's shared direnv config.
+_install_envrc_stub() {
+	local wt_path="$1" root="$2"
+	[[ -f "$root/.envrc.worktree" ]] || return 0
+	grep -q 'GWT_ROOT' "$root/.envrc" 2>/dev/null || return 0
+
+	if [[ ! -f "$wt_path/.envrc" ]]; then
+		# GWT_WORKTREE first: direnv's source_env cds to the sourced file's
+		# directory, so .envrc.worktree cannot see which worktree loaded it.
+		printf 'export GWT_WORKTREE="$PWD"\nsource_up\nsource_env "$GWT_ROOT/.envrc.worktree"\n' > "$wt_path/.envrc"
+		echo "==> Created .envrc"
+	fi
+	if command -v direnv &>/dev/null; then
+		(cd "$wt_path" && direnv allow) 2>/dev/null || true
+	else
+		echo "==> direnv not installed; run 'direnv allow' in $wt_path later"
+	fi
 }
 
 _update_workspace() {
@@ -90,11 +149,13 @@ clone)
 	cd "$dir"
 	git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
 	git fetch origin
-	default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')
-	default_branch="${default_branch:-main}"
+	default_branch=$(_default_branch)
 	git worktree add "$default_branch" "$default_branch"
+	# Shared direnv config at the root + stub in the first worktree
+	_install_envrc_root "$PWD"
+	_install_envrc_stub "$PWD/$default_branch" "$PWD"
 	# Copy worktree-root CLAUDE.md template if available
-	gwt_claude_md="${XDG_DATA_HOME:-$HOME/.local/share}/gwt/CLAUDE.md"
+	gwt_claude_md="$(_gwt_data_dir)/CLAUDE.md"
 	if [[ -f "$gwt_claude_md" ]]; then
 		cp "$gwt_claude_md" CLAUDE.md
 		echo "==> Copied CLAUDE.md template"
@@ -123,6 +184,7 @@ add)
 	else
 		git worktree add -b "$branch" "$root/$branch" "$base"
 	fi
+	_install_envrc_stub "$root/$branch" "$root"
 	_update_workspace "$root"
 	echo "==> cd $root/$branch"
 	;;
@@ -364,8 +426,12 @@ rename|mv)
 
 	# Rename the branch
 	git branch -m "$old_branch" "$new_branch"
-	# Move the worktree directory
+	# Move the worktree directory. Unlike `worktree add`, `worktree move` does
+	# not create missing parents, so a nested target (fix/api-fix-x) needs one.
+	mkdir -p "$(dirname "$new_path")"
 	git worktree move "$old_path" "$new_path"
+	# direnv trust is keyed on path, so the moved stub needs re-allowing
+	_install_envrc_stub "$new_path" "$root"
 	_cleanup_empty_parents "$old_path" "$root"
 	_update_workspace "$root"
 	echo "==> Renamed: $old_branch -> $new_branch"
