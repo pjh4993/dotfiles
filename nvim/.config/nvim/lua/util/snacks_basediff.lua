@@ -154,6 +154,13 @@ local function resolve_base(w, cb)
   if vim.fn.executable("gh") ~= 1 then
     return finish(nil)
   end
+  -- The worktree dir may be gone (pruned/deleted while git metadata lingers, or
+  -- a stale explorer cwd); vim.system() throws ENOENT if it can't chdir to cwd,
+  -- so skip spawning for a missing dir and leave the worktree unmarked.
+  local stat = (vim.uv or vim.loop).fs_stat(w)
+  if not stat or stat.type ~= "directory" then
+    return finish(nil)
+  end
   vim.system(
     { "gh", "pr", "view", "--json", "baseRefName", "--jq", ".baseRefName" },
     { cwd = w, text = true },
@@ -185,21 +192,56 @@ local function explorer_cwds()
   return cwds
 end
 
+-- Ask every open explorer to re-render with the current marks.
+--
+-- Deliberately debounced onto a timer rather than calling `picker:find()`
+-- straight away. A find() aborts the picker's in-flight finder task, but a task
+-- that was created and not yet stepped never sees that abort -- it is only
+-- delivered at the finder's next `coroutine.yield()`, and the explorer's tree
+-- walk doesn't yield until 100 items / 1ms -- so the "aborted" task later runs
+-- to completion and appends a *second* full copy of the tree to the new item
+-- list. The explorer then renders the whole tree twice, once after the other.
+--
+-- Our callers make that easy to hit: FocusGained refreshes twice in one tick,
+-- and M.recompute() can complete synchronously (every base already cached)
+-- while running *inside* the finder itself, via the patched Git.update -- which
+-- would re-enter Finder:run and leave two live tasks filling one item list.
+-- A timer moves the find to a later loop iteration and coalesces bursts.
+local refresh_timer = assert((vim.uv or vim.loop).new_timer())
+local refresh_tries = 0
+
 local function refresh_explorers()
-  local ok, pickers = pcall(Snacks.picker.get, { source = "explorer" })
-  if not ok then
-    return
-  end
-  for _, p in ipairs(pickers) do
-    if not p.closed then
-      pcall(function()
-        p.list:set_target()
-      end)
-      pcall(function()
-        p:find()
-      end)
-    end
-  end
+  refresh_timer:stop()
+  refresh_timer:start(
+    50,
+    0,
+    vim.schedule_wrap(function()
+      local ok, pickers = pcall(Snacks.picker.get, { source = "explorer" })
+      if not ok then
+        return
+      end
+      -- A find already in flight would be aborted mid-run by ours, which is the
+      -- same trap; wait it out instead. Bounded, so a slow finder can't starve
+      -- the marks forever.
+      for _, p in ipairs(pickers) do
+        if not p.closed and p.finder and p.finder:running() and refresh_tries < 20 then
+          refresh_tries = refresh_tries + 1
+          return refresh_explorers()
+        end
+      end
+      refresh_tries = 0
+      for _, p in ipairs(pickers) do
+        if not p.closed then
+          pcall(function()
+            p.list:set_target()
+          end)
+          pcall(function()
+            p:find()
+          end)
+        end
+      end
+    end)
+  )
 end
 
 local computing = false ---@type boolean a recompute is in flight

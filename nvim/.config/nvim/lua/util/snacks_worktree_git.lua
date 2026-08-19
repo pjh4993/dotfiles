@@ -89,7 +89,13 @@ local function scan(Git, cwd, opts)
   end
 
   if pending == 0 then
-    finish()
+    -- Scheduled, not immediate: with no worktrees to spawn for, this runs
+    -- inline inside the picker's finder, and `finish` schedules `on_update` ->
+    -- `picker:find()`. That second find lands before the finder task created by
+    -- the current one has been stepped, and an unstepped task ignores the abort
+    -- -- it later replays the whole tree into the new item list, so the explorer
+    -- renders the tree twice. See refresh_explorers() in util/snacks_basediff.
+    vim.schedule(finish)
     return
   end
 
