@@ -5,3 +5,27 @@ git:
   pagers:
     - colorArg: always
       pager: bash -c 'delta --dark --paging=never --side-by-side --width=$(({{columnWidth}} * 2))'
+
+# `gwt add` (~/.local/bin/gwt) from the branch panels: creates <project>/<branch>/
+# next to the bare repo, writes the direnv stub and rewrites the *.code-workspace.
+# `w` is taken by lazygit's own viewWorktreeOptions, which does a plain
+# `git worktree add` and skips all of that. `W` is the global diffing menu and
+# `g` is reset, so this sits on `G` (free in every panel).
+#
+# Two entries because the key is per-context: the Local branches tab and the
+# remote's branch list (<enter> on a remote) are separate contexts. `gwt add`
+# takes the bare branch name in both cases: for a remote-only branch it finds
+# refs/remotes/origin/<branch> itself and creates the tracking branch.
+customCommands:
+  - key: "G"
+    context: "localBranches"
+    description: "gwt add (worktree for branch)"
+    command: "gwt add {{ .SelectedLocalBranch.Name | quote }}"
+    loadingText: "gwt add..."
+    output: popup
+  - key: "G"
+    context: "remoteBranches"
+    description: "gwt add (worktree for branch)"
+    command: "gwt add {{ .SelectedRemoteBranch.Name | quote }}"
+    loadingText: "gwt add..."
+    output: popup
