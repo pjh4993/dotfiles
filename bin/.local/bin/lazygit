@@ -4,7 +4,11 @@
 if [[ -f .git ]] && grep -q "gitdir: ./.bare" .git 2>/dev/null; then
 	worktree_path=$(git worktree list --porcelain | awk '/^worktree / && !/\.bare$/ {print $2; exit}')
 	if [[ -n "$worktree_path" ]]; then
-		echo "==> bare repo root detected, entering worktree: $worktree_path"
+		# Only when stdout is a terminal: snacks.nvim runs `lazygit -cd` through
+		# a pipe and reads the FIRST line as the config dir, so any chatter here
+		# poisons LG_CONFIG_FILE and silently drops the user's config.yml
+		# (custom commands, delta pager) from the lazygit it opens.
+		[[ -t 1 ]] && echo "==> bare repo root detected, entering worktree: $worktree_path"
 		cd "$worktree_path"
 	fi
 fi
