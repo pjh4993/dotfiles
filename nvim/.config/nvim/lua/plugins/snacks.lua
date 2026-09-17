@@ -47,6 +47,12 @@ return {
     -- Always-on left-margin marks for files changed vs each branch's base PR.
     require("util.snacks_basediff").patch()
 
+    -- Smooth-scroll animation repaints many intermediate frames per scroll,
+    -- which floods the terminal/compositor with redraws and makes scrolling feel
+    -- expensive (nvim-core itself stays near-idle). Turn it off for instant,
+    -- single-frame scrolling.
+    opts.scroll = { enabled = false }
+
     return opts
   end,
 }
