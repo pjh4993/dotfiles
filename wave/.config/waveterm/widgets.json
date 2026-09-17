@@ -1,0 +1,15 @@
+{
+    "defwidget@terminal": {
+        "display:order": -5,
+        "icon": "square-terminal",
+        "label": "terminal",
+        "blockdef": {
+            "meta": {
+                "view": "term",
+                "controller": "shell",
+                "cmd:closeonexit": true,
+                "cmd:closeonexitdelay": 0
+            }
+        }
+    }
+}
