@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Wrapper that ties Claude Code sessions to tmux panes.
+# On first launch: generates a session UUID, saves it keyed by pane ID.
+# On restore (--restore flag): resumes the saved session for this pane.
+
+SAVE_DIR="${HOME}/.local/state/claude-pane"
+mkdir -p "$SAVE_DIR"
+
+if [[ -z "${TMUX:-}" ]]; then
+  echo "Not inside tmux, launching claude normally."
+  exec claude "$@"
+fi
+
+# Build a stable key: tmux_session:window_name:pane_index
+# These survive resurrect (unlike TMUX_PANE which gets reassigned)
+tmux_session=$(tmux display-message -p '#{session_name}')
+window_name=$(tmux display-message -p '#{window_name}')
+pane_index=$(tmux display-message -p '#{pane_index}')
+pane_key="${tmux_session}:${window_name}:${pane_index}"
+
+# Sanitize for filename
+state_file="${SAVE_DIR}/${pane_key//\//_}"
+
+if [[ "${1:-}" == "--restore" ]]; then
+  shift
+  if [[ -f "$state_file" ]]; then
+    session_id=$(cat "$state_file")
+    echo "Resuming Claude session ${session_id} for pane ${pane_key}..."
+    claude --resume "$session_id" "$@"
+  else
+    echo "No saved session for pane ${pane_key}, starting fresh."
+    claude-pane "$@"
+  fi
+elif [[ "${1:-}" == "--continue" ]] || [[ "${1:-}" == "-c" ]]; then
+  shift
+  if [[ -f "$state_file" ]]; then
+    session_id=$(cat "$state_file")
+    echo "Continuing Claude session ${session_id} for pane ${pane_key}..."
+    claude --resume "$session_id" "$@"
+  else
+    echo "No saved session for pane ${pane_key}, continuing most recent."
+    claude --continue "$@"
+  fi
+else
+  # Generate a new session UUID and save it
+  session_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+  echo "$session_id" > "$state_file"
+  claude --session-id "$session_id" "$@"
+fi

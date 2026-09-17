@@ -145,3 +145,11 @@ unset _cmd
 source /home/andrew/.config/broot/launcher/bash/br
 
 . "$HOME/.local/bin/env"
+
+# --- Claude Code 계정별 프로필 ------------------------------------------------
+# 회사 계정과 개인 계정이 설정 디렉터리를 공유하면, 조직이 배포하는 관리 설정과
+# 그 승인 기록이 두 계정에 함께 남습니다. 프로필을 분리해서 서로 침범하지 않게 합니다.
+#   claude, claude-personal : 개인 프로필 (~/.claude)
+#   claude-work             : 회사 프로필 (~/.claude-work)
+claude-personal() { CLAUDE_CONFIG_DIR="$HOME/.claude"      command claude "$@" }
+claude-work()     { CLAUDE_CONFIG_DIR="$HOME/.claude-work" command claude "$@" }
