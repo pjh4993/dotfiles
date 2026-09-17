@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# nosleep — prevent system sleep when lid is closed
+# Saves current pmset disablesleep value, overrides it to 1, and restores on exit.
+# Note: SIGKILL cannot be trapped; kill with SIGTERM (default kill) or Ctrl-C instead.
+set -euo pipefail
+
+if [[ $EUID -ne 0 ]]; then
+	echo "nosleep: pmset requires root. Re-running with sudo..." >&2
+	exec sudo "$0" "$@"
+fi
+
+_original=$(pmset -g | awk '/^\s+disablesleep/ {print $2}')
+_original="${_original:-0}"
+
+_restore() {
+	echo ""
+	echo "==> Restoring disablesleep to ${_original}..."
+	pmset -a disablesleep "$_original"
+	echo "==> Done."
+	exit 0
+}
+
+trap '_restore' SIGTERM SIGINT SIGHUP
+
+echo "==> Current disablesleep: ${_original}"
+echo "==> Setting disablesleep=1 (lid-close sleep disabled)"
+pmset -a disablesleep 1
+echo "==> Active. Send SIGTERM or Ctrl-C to restore and exit."
+echo "    (SIGKILL cannot be trapped — avoid kill -9)"
+
+while true; do
+	sleep 86400 &
+	wait $!
+done
