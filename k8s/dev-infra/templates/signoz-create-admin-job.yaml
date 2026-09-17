@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: signoz-create-admin
+  namespace: {{ .Values.namespace }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "10"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: create-admin
+          image: curlimages/curl:8.12.1
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for query-service..."
+              until curl -sf http://signoz-query-service:{{ .Values.signoz.signoz.port }}/api/v1/health; do
+                sleep 3
+              done
+              echo ""
+              echo "Checking setup status..."
+              SETUP=$(curl -sf http://signoz-query-service:{{ .Values.signoz.signoz.port }}/api/v1/version)
+              if echo "$SETUP" | grep -q '"setupCompleted":true'; then
+                echo "Setup already completed, skipping."
+                exit 0
+              fi
+              echo "Registering default admin user..."
+              curl -sf -X POST \
+                http://signoz-query-service:{{ .Values.signoz.signoz.port }}/api/v1/register \
+                -H "Content-Type: application/json" \
+                -d "{\"email\":\"{{ .Values.signoz.admin.email }}\",\"name\":\"{{ .Values.signoz.admin.name }}\",\"orgName\":\"{{ .Values.signoz.admin.orgName }}\",\"password\":\"{{ .Values.signoz.admin.password }}\",\"confirmPassword\":\"{{ .Values.signoz.admin.password }}\"}"
+              echo ""
+              echo "Done."

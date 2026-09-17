@@ -1,0 +1,114 @@
+namespace: dev
+
+postgres:
+  image: pgvector/pgvector:pg17
+  user: dev
+  password: dev
+  db: mydb
+  storage: 10Gi
+  port: 5432
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 2Gi
+
+rabbitmq:
+  image: rabbitmq:4-management
+  user: dev
+  password: dev
+  storage: 1Gi
+  ports:
+    amqp: 5672
+    management: 15672
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+redis:
+  image: redis:7-alpine
+  password: dev
+  storage: 1Gi
+  port: 6379
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 128Mi
+
+prometheus:
+  image: prom/prometheus:v3.2.1
+  storage: 5Gi
+  port: 9090
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+otelcol:
+  image: otel/opentelemetry-collector-contrib:0.119.0
+  ports:
+    grpc: 4317
+    http: 4318
+    metrics: 8888
+    prometheusExporter: 8889
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 128Mi
+
+signoz:
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.5-alpine
+    storage: 10Gi
+    httpPort: 8123
+    nativePort: 9000
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+  schemaMigrator:
+    image: signoz/signoz-schema-migrator:v0.144.2
+  collector:
+    image: signoz/signoz-otel-collector:v0.144.2
+    grpcPort: 14317
+    httpPort: 14318
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+  signoz:
+    image: signoz/signoz-community:v0.114.0
+    port: 8080
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+  admin:
+    email: admin@dev.local
+    name: Admin
+    orgName: dev
+    password: Admin@12345678

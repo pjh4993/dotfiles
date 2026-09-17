@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signoz-query-service
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: signoz-query-service
+  template:
+    metadata:
+      labels:
+        app: signoz-query-service
+    spec:
+      initContainers:
+        - name: schema-migrator-sync
+          image: {{ .Values.signoz.schemaMigrator.image }}
+          command:
+            - /signoz-schema-migrator
+            - sync
+            - --dsn=tcp://signoz-clickhouse:9000
+            - --cluster-name=cluster
+            - --up=
+        - name: schema-migrator-async
+          image: {{ .Values.signoz.schemaMigrator.image }}
+          command:
+            - /signoz-schema-migrator
+            - async
+            - --dsn=tcp://signoz-clickhouse:9000
+            - --cluster-name=cluster
+            - --up=
+      containers:
+        - name: signoz
+          image: {{ .Values.signoz.signoz.image }}
+          resources:
+            {{- toYaml .Values.signoz.signoz.resources | nindent 12 }}
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SIGNOZ_TELEMETRYSTORE_PROVIDER
+              value: clickhouse
+            - name: SIGNOZ_TELEMETRYSTORE_CLICKHOUSE_DSN
+              value: tcp://signoz-clickhouse:9000
+            - name: SIGNOZ_SQLSTORE_PROVIDER
+              value: sqlite
+            - name: SIGNOZ_SQLSTORE_SQLITE_PATH
+              value: /var/lib/signoz/signoz.db
+            - name: GODEBUG
+              value: netdns=go
+            - name: TELEMETRY_ENABLED
+              value: "false"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/signoz
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 5
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: signoz-query-service-pvc

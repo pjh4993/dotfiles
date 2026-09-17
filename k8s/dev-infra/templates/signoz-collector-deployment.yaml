@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signoz-collector
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: signoz-collector
+  template:
+    metadata:
+      labels:
+        app: signoz-collector
+    spec:
+      initContainers:
+        - name: init-clickhouse-dbs
+          image: {{ .Values.signoz.clickhouse.image }}
+          command:
+            - sh
+            - -c
+            - |
+              until clickhouse-client --host signoz-clickhouse --port 9000 --query "SELECT 1" 2>/dev/null; do
+                echo "Waiting for ClickHouse..."
+                sleep 2
+              done
+              clickhouse-client --host signoz-clickhouse --port 9000 --query "CREATE DATABASE IF NOT EXISTS signoz_traces"
+              clickhouse-client --host signoz-clickhouse --port 9000 --query "CREATE DATABASE IF NOT EXISTS signoz_logs"
+              clickhouse-client --host signoz-clickhouse --port 9000 --query "CREATE DATABASE IF NOT EXISTS signoz_metrics"
+      containers:
+        - name: signoz-collector
+          image: {{ .Values.signoz.collector.image }}
+          resources:
+            {{- toYaml .Values.signoz.collector.resources | nindent 12 }}
+          args: ["--config=/etc/otelcol/config.yaml"]
+          ports:
+            - containerPort: 4317
+            - containerPort: 4318
+            - containerPort: 13133
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otelcol
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 13133
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: signoz-collector-config

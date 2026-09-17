@@ -1,0 +1,100 @@
+# Lean overrides for kube-prometheus-stack on Docker Desktop Kubernetes.
+# Chart: https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack
+
+# Disable Alertmanager — not needed for local pod-metric viewing.
+alertmanager:
+  enabled: false
+
+# These control-plane endpoints aren't exposed on Docker Desktop k8s.
+# Leaving them on produces "context deadline exceeded" scrape errors.
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+kubeEtcd:
+  enabled: false
+
+# Kept (these provide the pod CPU/memory/network metrics you want):
+#   kubelet (cAdvisor), kube-state-metrics, node-exporter, kube-apiserver, coreDns.
+
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+
+prometheus:
+  prometheusSpec:
+    retention: 3d
+    retentionSize: "4GB"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 384Mi
+      limits:
+        memory: 1Gi
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: hostpath
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 5Gi
+    # Pick up ServiceMonitors / PodMonitors from any namespace, no label filter.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+
+grafana:
+  adminUser: admin
+  adminPassword: admin
+  defaultDashboardsTimezone: browser
+  persistence:
+    enabled: true
+    type: pvc
+    storageClassName: hostpath
+    size: 1Gi
+    accessModes:
+      - ReadWriteOnce
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hosts:
+      - grafana.jhpark.local
+    path: /
+    pathType: Prefix
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      searchNamespace: ALL
+    datasources:
+      enabled: true
+
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 20m
+      memory: 32Mi
+    limits:
+      memory: 64Mi

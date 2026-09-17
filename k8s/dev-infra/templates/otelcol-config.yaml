@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otelcol-config
+  namespace: {{ .Values.namespace }}
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+
+    processors:
+      batch:
+
+    exporters:
+      prometheus:
+        endpoint: "0.0.0.0:{{ .Values.otelcol.ports.prometheusExporter }}"
+      otlp/signoz:
+        endpoint: signoz-collector:{{ .Values.signoz.collector.grpcPort }}
+        tls:
+          insecure: true
+      debug:
+        verbosity: normal
+
+    service:
+      extensions: [health_check]
+      telemetry:
+        metrics:
+          address: 0.0.0.0:{{ .Values.otelcol.ports.metrics }}
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlp/signoz, debug]
+        metrics:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [prometheus, otlp/signoz, debug]
+        logs:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlp/signoz, debug]

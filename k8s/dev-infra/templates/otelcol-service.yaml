@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: otelcol
+  namespace: {{ .Values.namespace }}
+spec:
+  selector:
+    app: otelcol
+  ports:
+    - name: grpc
+      port: {{ .Values.otelcol.ports.grpc }}
+      targetPort: 4317
+    - name: http
+      port: {{ .Values.otelcol.ports.http }}
+      targetPort: 4318
+    - name: metrics
+      port: {{ .Values.otelcol.ports.metrics }}
+      targetPort: 8888
+    - name: prometheus-exporter
+      port: {{ .Values.otelcol.ports.prometheusExporter }}
+      targetPort: 8889
+  type: LoadBalancer

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: signoz-clickhouse
+  namespace: {{ .Values.namespace }}
+spec:
+  selector:
+    app: signoz-clickhouse
+  ports:
+    - name: http
+      port: {{ .Values.signoz.clickhouse.httpPort }}
+      targetPort: 8123
+    - name: native
+      port: {{ .Values.signoz.clickhouse.nativePort }}
+      targetPort: 9000
+  type: ClusterIP

@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signoz-clickhouse
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: signoz-clickhouse
+  template:
+    metadata:
+      labels:
+        app: signoz-clickhouse
+    spec:
+      containers:
+        - name: clickhouse
+          image: {{ .Values.signoz.clickhouse.image }}
+          resources:
+            {{- toYaml .Values.signoz.clickhouse.resources | nindent 12 }}
+          ports:
+            - containerPort: 8123
+            - containerPort: 9000
+          env:
+            - name: CLICKHOUSE_DB
+              value: signoz_traces
+            - name: CLICKHOUSE_USER
+              value: default
+            - name: CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT
+              value: "1"
+            - name: ALLOW_EMPTY_PASSWORD
+              value: "yes"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/clickhouse
+            - name: users-config
+              mountPath: /etc/clickhouse-server/users.d/users.xml
+              subPath: users.xml
+            - name: cluster-config
+              mountPath: /etc/clickhouse-server/config.d/cluster.xml
+              subPath: cluster.xml
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: 8123
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: signoz-clickhouse-pvc
+        - name: users-config
+          configMap:
+            name: signoz-clickhouse-config
+            items:
+              - key: users.xml
+                path: users.xml
+        - name: cluster-config
+          configMap:
+            name: signoz-clickhouse-config
+            items:
+              - key: cluster.xml
+                path: cluster.xml

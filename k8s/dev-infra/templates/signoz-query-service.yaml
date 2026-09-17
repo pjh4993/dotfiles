@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: signoz-query-service
+  namespace: {{ .Values.namespace }}
+spec:
+  selector:
+    app: signoz-query-service
+  ports:
+    - port: {{ .Values.signoz.signoz.port }}
+      targetPort: 8080
+  type: LoadBalancer
