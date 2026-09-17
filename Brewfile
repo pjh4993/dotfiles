@@ -30,6 +30,9 @@ brew "duckdb"
 brew "postgresql@17"
 brew "pgvector"
 
+# AI coding agents
+brew "opencode"
+
 # Secrets
 brew "infisical"
 

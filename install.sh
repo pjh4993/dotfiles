@@ -26,10 +26,11 @@ install_macos() {
   git lfs install
 
   install_tpm
+  setup_opencode
 
   echo "==> Stowing packages..."
   cd "$DOTFILES_DIR"
-  safe_stow "${BASE_PACKAGES[@]}" alacritty aerospace tmuxinator claude ssh wave
+  safe_stow "${BASE_PACKAGES[@]}" alacritty aerospace tmuxinator claude opencode ssh wave
 }
 
 install_linux() {
@@ -192,14 +193,26 @@ install_linux() {
     fi
   fi
 
+  # Install opencode (not in apt; macOS gets it from the Brewfile). The official
+  # installer drops the binary in ~/.opencode/bin — --no-modify-path keeps it from
+  # appending PATH lines to ~/.zshrc, which is a symlink into this repo.
+  if ! command -v opencode &>/dev/null; then
+    echo "==> Installing opencode..."
+    curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path
+    # ~/.local/bin is already on PATH (see zsh/.zshrc), so link instead of editing it.
+    mkdir -p "$HOME/.local/bin"
+    ln -sf "$HOME/.opencode/bin/opencode" "$HOME/.local/bin/opencode"
+  fi
+
   install_tpm
+  setup_opencode
 
   echo "==> Stowing packages..."
   cd "$DOTFILES_DIR"
   if [ "$HEADLESS" = false ]; then
-    safe_stow "${BASE_PACKAGES[@]}" alacritty i3 tmuxinator claude ssh wave
+    safe_stow "${BASE_PACKAGES[@]}" alacritty i3 tmuxinator claude opencode ssh wave
   else
-    safe_stow "${BASE_PACKAGES[@]}" tmuxinator claude ssh
+    safe_stow "${BASE_PACKAGES[@]}" tmuxinator claude opencode ssh
   fi
 }
 
@@ -234,6 +247,31 @@ install_tpm() {
 
   echo "==> Installing tmux plugins (resurrect, continuum)..."
   "$TPM_DIR/bin/install_plugins"
+}
+
+# Wire opencode up to Claude Code's assets so both agents read the same context.
+# opencode already does most of this natively (see https://opencode.ai/docs/rules):
+#   rules   — ./AGENTS.md, else ./CLAUDE.md; global ~/.config/opencode/AGENTS.md,
+#             else ~/.claude/CLAUDE.md
+#   skills  — .opencode/skills, .claude/skills, and the same two under $HOME
+# Slash commands are the gap: opencode only looks in its own commands dir, so
+# point that at Claude's. Deliberately NO ~/.config/opencode/AGENTS.md here — it
+# would shadow ~/.claude/CLAUDE.md instead of composing with it.
+setup_opencode() {
+  echo "==> Setting up opencode <-> Claude Code interop..."
+
+  # Keep ~/.config/opencode a real directory rather than letting stow fold it into
+  # a symlink to this repo — opencode writes state there, and the commands symlink
+  # below lives there too.
+  mkdir -p "$HOME/.config/opencode" "$HOME/.claude/commands"
+
+  local link="$HOME/.config/opencode/commands"
+  if [ -L "$link" ] || [ ! -e "$link" ]; then
+    ln -sfn "$HOME/.claude/commands" "$link"
+    echo "    $link -> ~/.claude/commands"
+  else
+    echo "    $link exists and is not a symlink — leaving it alone"
+  fi
 }
 
 echo "dotfiles installer"
